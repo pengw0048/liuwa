@@ -42,7 +42,9 @@ final class TranscriptionManager {
         } catch {
             overlay?.setMicActive(false)
             isRunning = false
-            print("Transcription error: \(error)")
+            let msg = "⚠️ Mic error: \(error.localizedDescription)"
+            print(msg)
+            overlay?.setMicTranscript(msg)
         }
     }
 

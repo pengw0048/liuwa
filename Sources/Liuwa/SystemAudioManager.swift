@@ -39,9 +39,10 @@ final class SystemAudioManager {
             try await setupSystemAudioTap()
         } catch {
             overlay?.setSysAudioActive(false)
-            print("System audio error: \(error)")
             isRunning = false
-            print("System audio error: \(error)")
+            let msg = "⚠️ System audio error: \(error.localizedDescription)"
+            print(msg)
+            overlay?.setSysTranscript(msg)
         }
     }
 

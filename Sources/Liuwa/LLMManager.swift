@@ -93,19 +93,24 @@ final class LLMManager {
 
     // MARK: - Model & Session Setup
 
+    private var lastSetupError: String = ""
+
     private func buildModel() -> (any LanguageModel)? {
         let s = AppSettings.shared
         let model = s.remoteModel
-        guard !model.isEmpty || s.llmProvider == "local" else { return nil }
+        lastSetupError = ""
 
         switch s.llmProvider {
         case "local":
-            if case .available = SystemLanguageModel.default.availability {
+            let availability = SystemLanguageModel.default.availability
+            if case .available = availability {
                 return SystemLanguageModel.default
             }
+            lastSetupError = "Local model not available (availability: \(availability)). Apple Silicon with macOS 26+ required. Check Settings > Apple Intelligence."
             return nil
         case "openai":
-            guard !s.remoteAPIKey.isEmpty else { return nil }
+            guard !s.remoteAPIKey.isEmpty else { lastSetupError = "OpenAI API key not set. ⌘⌥S to configure."; return nil }
+            guard !model.isEmpty else { lastSetupError = "OpenAI model not set (e.g. gpt-4o-mini). ⌘⌥S to configure."; return nil }
             if !s.remoteEndpoint.isEmpty {
                 return OpenAILanguageModel(
                     baseURL: URL(string: s.remoteEndpoint)!,
@@ -115,15 +120,19 @@ final class LLMManager {
             }
             return OpenAILanguageModel(apiKey: s.remoteAPIKey, model: model)
         case "anthropic":
-            guard !s.remoteAPIKey.isEmpty else { return nil }
+            guard !s.remoteAPIKey.isEmpty else { lastSetupError = "Anthropic API key not set. ⌘⌥S to configure."; return nil }
+            guard !model.isEmpty else { lastSetupError = "Anthropic model not set (e.g. claude-sonnet-4-20250514). ⌘⌥S to configure."; return nil }
             return AnthropicLanguageModel(apiKey: s.remoteAPIKey, model: model)
         case "gemini":
-            guard !s.remoteAPIKey.isEmpty else { return nil }
+            guard !s.remoteAPIKey.isEmpty else { lastSetupError = "Gemini API key not set. ⌘⌥S to configure."; return nil }
+            guard !model.isEmpty else { lastSetupError = "Gemini model not set (e.g. gemini-2.0-flash). ⌘⌥S to configure."; return nil }
             return GeminiLanguageModel(apiKey: s.remoteAPIKey, model: model)
         case "ollama":
+            guard !model.isEmpty else { lastSetupError = "Ollama model not set (e.g. llama3). ⌘⌥S to configure."; return nil }
             let base = s.remoteEndpoint.isEmpty ? "http://localhost:11434" : s.remoteEndpoint
             return OllamaLanguageModel(baseURL: URL(string: base)!, model: model)
         default:
+            lastSetupError = "Unknown LLM provider: \(s.llmProvider)"
             return nil
         }
     }
@@ -135,12 +144,14 @@ final class LLMManager {
             model: model,
             instructions: "You are a helpful meeting/interview assistant. Analyze context and give concise actionable advice. For coding: provide approach and key code. Respond in \(s.responseLanguage)."
         )
+        lastSetupError = ""  // clear error on success
     }
 
     private func queryLLM(prompt: String, image: CGImage? = nil) async throws {
         if session == nil { setupSession() }
         guard let session else {
-            conversationLog += "No LLM configured. ⌘⌥S to set up.\n\n"
+            let reason = lastSetupError.isEmpty ? "No LLM configured. ⌘⌥S to set up." : "⚠️ \(lastSetupError)"
+            conversationLog += "\(reason)\n\n"
             overlay?.setText(conversationLog, for: .aiResponse)
             return
         }
