@@ -289,7 +289,7 @@ final class OverlayController: @unchecked Sendable {
     private func buildDocHints() -> String {
         let s = AppSettings.shared
         let attach = s.attachDocToContext ? "🟢" : "⚫"
-        return "📂\(s.keyFor("showDocs")) open  ←→ nav  \(s.keyFor("scrollDocUp"))↑\(s.keyFor("scrollDocDown"))↓ scroll  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
+        return "📂\(s.keyFor("showDocs")) open  \(s.keyFor("docPrev"))◀\(s.keyFor("docNext"))▶ nav  \(s.keyFor("scrollDocUp"))↑\(s.keyFor("scrollDocDown"))↓ scroll  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
     }
 
     // ── AI hints: line 1 = presets, line 2 = tools ──
