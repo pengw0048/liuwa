@@ -56,13 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         let desc = NSTextField(wrappingLabelWithString:
             "Liuwa uses an invisible overlay with global hotkeys. " +
             "Without these permissions, hotkeys and capture won't work.\n\n" +
-            "Grant all permissions in System Settings, then click Continue.\n" +
-            "After updating Liuwa, you may need to remove the old entry and re-add it.")
+            "Grant all permissions in System Settings, then click Continue.")
         desc.font = .systemFont(ofSize: 12)
-        desc.frame = NSRect(x: 20, y: h - 130, width: w - 40, height: 84)
+        desc.frame = NSRect(x: 20, y: h - 120, width: w - 40, height: 72)
         root.addSubview(desc)
 
-        var y = h - 165
+        var y = h - 155
 
         // Accessibility (critical)
         let axLbl = makePermRow(parent: root, y: y, label: "Accessibility (required)", status: AXIsProcessTrusted())
@@ -79,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         let scrStatus = CGPreflightScreenCaptureAccess()
         let scrLbl = makePermRow(parent: root, y: y, label: "Screen Recording (for screen capture)", status: scrStatus)
         scrLabel = scrLbl
-        y -= 36
+        y -= 40
 
         // Open System Settings button
         let openBtn = NSButton(title: "Open Accessibility Settings…", target: self, action: #selector(openAccessibilitySettings))
@@ -91,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         openMicBtn.bezelStyle = .rounded
         openMicBtn.frame = NSRect(x: 250, y: y, width: 190, height: 28)
         root.addSubview(openMicBtn)
-        y -= 32
+        y -= 36
 
         let openScrBtn = NSButton(title: "Open Screen Recording Settings…", target: self, action: #selector(openScreenSettings))
         openScrBtn.bezelStyle = .rounded
@@ -107,14 +106,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         btn.keyEquivalent = "\r"
         root.addSubview(btn)
         continueBtn = btn
-
-        // Skip button (always enabled, for reinstall scenarios)
-        let skipBtn = NSButton(title: "Skip →", target: self, action: #selector(permSkip))
-        skipBtn.bezelStyle = .rounded
-        skipBtn.font = .systemFont(ofSize: 11)
-        skipBtn.frame = NSRect(x: w - 248, y: 18, width: 60, height: 28)
-        skipBtn.toolTip = "Continue without verifying permissions (use after reinstall if already granted)"
-        root.addSubview(skipBtn)
 
         win.contentView = root
         win.makeKeyAndOrderFront(nil)
@@ -170,14 +161,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
     @objc @MainActor private func permContinue() {
         guard allPermissionsGranted() else { return }
-        dismissPermWindowAndLaunch()
-    }
-
-    @objc @MainActor private func permSkip() {
-        dismissPermWindowAndLaunch()
-    }
-
-    @MainActor private func dismissPermWindowAndLaunch() {
         permTimer?.invalidate(); permTimer = nil
         setupWindow?.close(); setupWindow = nil
         NSApp.setActivationPolicy(.accessory)

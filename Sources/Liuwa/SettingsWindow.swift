@@ -135,11 +135,17 @@ final class SettingsWindow {
         // ── Transcription ──
         sec("Transcription")
         lbl("Language:")
-        let transLocP = NSPopUpButton(frame: NSRect(x: fx, y: y-2, width: 220, height: 20))
+        let transLocP = NSPopUpButton(frame: NSRect(x: fx, y: y-2, width: 260, height: 20))
         let locales = Self.transcriptionLocales()
-        for (id, name) in locales { transLocP.addItem(withTitle: "\(name) (\(id))") }
-        if let idx = locales.firstIndex(where: { $0.id == s.transcriptionLocale }) { transLocP.selectItem(at: idx) }
-        else { transLocP.addItem(withTitle: s.transcriptionLocale); transLocP.selectItem(at: transLocP.numberOfItems - 1) }
+        if locales.isEmpty {
+            // Async fetch not done yet — show current value only
+            let name = Locale.current.localizedString(forIdentifier: s.transcriptionLocale) ?? s.transcriptionLocale
+            transLocP.addItem(withTitle: "\(name) (\(s.transcriptionLocale))")
+        } else {
+            for (id, name) in locales { transLocP.addItem(withTitle: "\(name) (\(id))") }
+            if let idx = locales.firstIndex(where: { $0.id == s.transcriptionLocale }) { transLocP.selectItem(at: idx) }
+            else { transLocP.addItem(withTitle: s.transcriptionLocale); transLocP.selectItem(at: transLocP.numberOfItems - 1) }
+        }
         transLocP.font = .systemFont(ofSize: 11); doc.addSubview(transLocP); y += 22
 
         // ── Screen Capture ──
@@ -308,15 +314,9 @@ private struct SettingsSnapshot {
 private final class FlippedView: NSView { override var isFlipped: Bool { true } }
 
 extension SettingsWindow {
-    /// Returns cached locales from SpeechTranscriber.supportedLocales, with a small fallback
+    /// Returns locales from SpeechTranscriber.supportedLocales (fetched at launch)
     static func transcriptionLocales() -> [(id: String, name: String)] {
-        if let cached = AppSettings.cachedTranscriptionLocales, !cached.isEmpty {
-            return cached
-        }
-        // Fallback if async fetch hasn't completed yet
-        let ids = ["en-US", "en-GB", "zh-Hans", "zh-Hant", "ja-JP", "ko-KR",
-                    "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR", "ru-RU"]
-        return ids.map { ($0, Locale.current.localizedString(forIdentifier: $0) ?? $0) }
+        return AppSettings.cachedTranscriptionLocales ?? []
     }
 }
 

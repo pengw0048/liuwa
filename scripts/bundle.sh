@@ -24,7 +24,14 @@ cp Sources/Liuwa/Info.plist "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$APP/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "$APP/Contents/Info.plist" 2>/dev/null || true
 
-# Ad-hoc code sign
-codesign --force --deep -s - "$APP"
-
-echo "Created $APP (ad-hoc signed)"
+# Code sign — use "Liuwa Dev" self-signed cert if available, else ad-hoc
+CERT="Liuwa Dev"
+if security find-identity -v -p codesigning | grep -q "$CERT"; then
+    codesign --force --deep -s "$CERT" "$APP"
+    echo "Created $APP (signed with '$CERT')"
+else
+    echo "Warning: '$CERT' certificate not found, falling back to ad-hoc signing."
+    echo "Run: scripts/create-cert.sh to create the certificate."
+    codesign --force --deep -s - "$APP"
+    echo "Created $APP (ad-hoc signed — permissions won't persist across rebuilds)"
+fi

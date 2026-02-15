@@ -31,6 +31,23 @@ swift build
 open Liuwa.app
 ```
 
+### Code Signing Certificate (recommended)
+
+By default, `bundle.sh` uses ad-hoc signing. This means macOS treats each rebuild as a new app, and you'll need to re-grant permissions (Accessibility, Microphone, Screen Recording) every time.
+
+To avoid this, create a self-signed "Liuwa Dev" certificate once:
+
+```bash
+./scripts/create-cert.sh
+```
+
+This creates a persistent code signing identity in your login keychain. All subsequent `bundle.sh` runs will sign with it automatically, and macOS will remember permissions across rebuilds.
+
+The script:
+1. Generates a self-signed certificate with code signing key usage
+2. Imports it into your login keychain
+3. Trusts it for code signing (may prompt for your login password)
+
 ## Permissions
 
 On first launch, Liuwa shows a setup window and requires all of the following before you can continue (System Settings > Privacy & Security):
@@ -92,8 +109,9 @@ To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other tex
 ## Building release binaries
 
 ```bash
+./scripts/create-cert.sh        # one-time: create signing certificate
 swift build -c release          # binary at .build/release/Liuwa
-./scripts/bundle.sh             # .app bundle at Liuwa.app
+./scripts/bundle.sh             # .app bundle at Liuwa.app (signed with Liuwa Dev cert)
 ```
 
 ## How the invisibility works
@@ -117,6 +135,9 @@ Sources/Liuwa/
   LLMManager.swift           -- Foundation Models (local) + remote API
   DocumentManager.swift      -- Reference document loading
   Info.plist                 -- Privacy permission descriptions
+scripts/
+  bundle.sh                  -- Build and package as .app (signs with Liuwa Dev cert)
+  create-cert.sh             -- Create self-signed code signing certificate
 ```
 
 ## What does Liuwa mean?
