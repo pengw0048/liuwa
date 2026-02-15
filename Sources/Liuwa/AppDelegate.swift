@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         case .toggleTranscription: transcription.toggle()
         case .toggleSystemAudio: systemAudio.toggle()
         case .showDocs: docs.showDocuments()
+        case .docPrev: docs.previousDocument()
+        case .docNext: docs.nextDocument()
         case .openSettings: settings.toggle()
         case .cycleScreenText:
             s.sendScreenText.toggle(); s.save(); overlay.refreshStatus()

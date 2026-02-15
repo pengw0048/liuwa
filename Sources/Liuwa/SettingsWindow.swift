@@ -76,7 +76,7 @@ final class SettingsWindow {
         if let idx = AppSettings.llmProviders.firstIndex(of: s.llmProvider) { providerP.selectItem(at: idx) }
         providerP.font = .systemFont(ofSize: 11); doc.addSubview(providerP); y += 24
 
-        let needsKey = (s.llmProvider == "openai" || s.llmProvider == "anthropic")
+        let needsKey = (s.llmProvider == "openai" || s.llmProvider == "anthropic" || s.llmProvider == "gemini")
         let needsModel = (s.llmProvider != "local")
         let needsEndpoint = (s.llmProvider == "openai" || s.llmProvider == "ollama")
 
@@ -88,7 +88,11 @@ final class SettingsWindow {
             lbl("API Key:")
             let k = NSSecureTextField(string: s.remoteAPIKey)
             k.frame = NSRect(x: fx, y: y, width: fw, height: 18)
-            k.placeholderString = s.llmProvider == "anthropic" ? "sk-ant-..." : "sk-..."
+            switch s.llmProvider {
+            case "anthropic": k.placeholderString = "sk-ant-..."
+            case "gemini": k.placeholderString = "AIza..."
+            default: k.placeholderString = "sk-..."
+            }
             doc.addSubview(k); keyF = k; y += 20
         }
 
@@ -97,9 +101,10 @@ final class SettingsWindow {
             let m = NSTextField(string: s.remoteModel)
             m.frame = NSRect(x: fx, y: y, width: fw, height: 18)
             switch s.llmProvider {
-            case "openai": m.placeholderString = "gpt-4o-mini"
-            case "anthropic": m.placeholderString = "claude-sonnet-4-5-20250929"
-            case "ollama": m.placeholderString = "llama3.2"
+            case "openai": m.placeholderString = "e.g. gpt-4o-mini"
+            case "anthropic": m.placeholderString = "e.g. claude-sonnet-4-5-20250929"
+            case "gemini": m.placeholderString = "e.g. gemini-2.0-flash"
+            case "ollama": m.placeholderString = "e.g. llama3.2"
             default: break
             }
             doc.addSubview(m); modF = m; y += 20
@@ -187,9 +192,9 @@ final class SettingsWindow {
         }
         if col != 0 { y += 20 }
 
-        let arrowL = NSTextField(labelWithString: "↑↓ Scroll AI (fixed)")
+        let arrowL = NSTextField(labelWithString: "↑↓ Scroll AI, ←→ Switch docs (fixed)")
         arrowL.font = .systemFont(ofSize: 10); arrowL.textColor = .secondaryLabelColor
-        arrowL.frame = NSRect(x: lx, y: y, width: 200, height: 14); doc.addSubview(arrowL); y += 18
+        arrowL.frame = NSRect(x: lx, y: y, width: 260, height: 14); doc.addSubview(arrowL); y += 18
 
         // ── Save / Cancel ──
         y += 8

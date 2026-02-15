@@ -57,6 +57,7 @@ Default bindings:
 | ⌘⌥Z | Cycle screenshot capture (off / on) |
 | ⌘⌥C | Clear AI conversation |
 | ⌘⌥↑↓ | Scroll AI response |
+| ⌘⌥←→ | Previous/next document |
 | ⌘⌥D | Open documents panel |
 | ⌘⌥S | Open settings |
 | ⌘⌥Q | Quit |
@@ -71,7 +72,7 @@ Default bindings:
 
 **Screen content extraction** -- Two modes: (1) Accessibility API reads text directly from the active window, (2) ScreenCaptureKit takes a screenshot with OCR via Apple Vision framework.
 
-**LLM integration** -- Supports macOS 26 Foundation Models (~3B parameter on-device model) for fully offline operation, plus OpenAI, Anthropic (Claude), and Ollama via [AnyLanguageModel](https://github.com/mattt/AnyLanguageModel). Switch providers in the settings window.
+**LLM integration** -- Supports macOS 26 Foundation Models (~3B parameter on-device model) for fully offline operation, plus OpenAI, Anthropic (Claude), Google Gemini, and Ollama via [AnyLanguageModel](https://github.com/mattt/AnyLanguageModel). Switch providers in the settings window.
 
 **Configurable UI** -- Transparency, width, font size, and hotkey bindings are all adjustable through a settings dialog with live preview.
 
@@ -79,9 +80,26 @@ Default bindings:
 
 All settings are configurable through the in-app settings window (⌘⌥S). Settings persist to `~/.liuwa/config.json`.
 
-Supported LLM providers: Local (Apple Foundation Models), OpenAI, Anthropic (Claude), Ollama. Select a provider and fill in the credentials in the settings window.
+Supported LLM providers: Local (Apple Foundation Models), OpenAI, Anthropic (Claude), Google Gemini, Ollama. Select a provider and fill in the credentials in the settings window.
 
-To load reference documents (shown via ⌘⌥D), place `.txt`, `.md`, `.json`, or `.swift` files in `~/Documents/Liuwa/` (configurable in settings).
+To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other text files in `~/Documents/Liuwa/` (configurable in settings). Press ⌘⌥D to open docs, then ⌘⌥←/→ to navigate between files.
+
+## Building release binaries
+
+To build an optimized release binary for your architecture:
+
+```bash
+swift build -c release
+# Binary at: .build/arm64-apple-macosx/release/Liuwa  (Apple Silicon)
+# or:        .build/x86_64-apple-macosx/release/Liuwa  (Intel)
+```
+
+To build a universal binary (both arm64 and x86_64):
+
+```bash
+swift build -c release --arch arm64 --arch x86_64
+# Binary at: .build/apple/Products/Release/Liuwa
+```
 
 ## How the invisibility works
 

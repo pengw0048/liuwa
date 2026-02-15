@@ -17,9 +17,9 @@ final class AppSettings: @unchecked Sendable {
     var transcriptionRatio: CGFloat = 0.30
 
     // LLM
-    static let llmProviders = ["local", "openai", "anthropic", "ollama"]
-    static let llmProviderLabels = ["Local (Apple AI)", "OpenAI", "Anthropic (Claude)", "Ollama"]
-    var llmProvider: String = "local"  // "local", "openai", "anthropic", "ollama"
+    static let llmProviders = ["local", "openai", "anthropic", "gemini", "ollama"]
+    static let llmProviderLabels = ["Local (Apple AI)", "OpenAI", "Anthropic (Claude)", "Google Gemini", "Ollama"]
+    var llmProvider: String = "local"  // "local", "openai", "anthropic", "gemini", "ollama"
     var remoteAPIKey: String = ""
     var remoteModel: String = ""
     var remoteEndpoint: String = ""
@@ -56,6 +56,8 @@ final class AppSettings: @unchecked Sendable {
         "clearAI": "C",
         "scrollAIUp": "↑",
         "scrollAIDown": "↓",
+        "docPrev": "←",
+        "docNext": "→",
         "preset1": "1",
         "preset2": "2",
         "preset3": "3",

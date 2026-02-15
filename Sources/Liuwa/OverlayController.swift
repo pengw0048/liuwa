@@ -130,7 +130,7 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let ghost = window.ghostModeOn ? "👻" : "👁"
         let click = window.clickThroughOn ? "🔒" : "🖱"
-        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  ⚙\(s.keyFor("openSettings")) cfg  📂\(s.keyFor("showDocs")) docs  ❌\(s.keyFor("quit")) quit"
+        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  ⚙\(s.keyFor("openSettings")) cfg  📂\(s.keyFor("showDocs")) docs ←→  ❌\(s.keyFor("quit")) quit"
     }
 
     private func buildCollapsedLine() -> String {

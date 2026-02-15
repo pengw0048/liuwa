@@ -67,6 +67,9 @@ final class LLMManager {
 
     private func buildModel() -> (any LanguageModel)? {
         let s = AppSettings.shared
+        let model = s.remoteModel
+        guard !model.isEmpty || s.llmProvider == "local" else { return nil }
+
         switch s.llmProvider {
         case "local":
             if case .available = SystemLanguageModel.default.availability {
@@ -79,25 +82,19 @@ final class LLMManager {
                 return OpenAILanguageModel(
                     baseURL: URL(string: s.remoteEndpoint)!,
                     apiKey: s.remoteAPIKey,
-                    model: s.remoteModel.isEmpty ? "gpt-4o-mini" : s.remoteModel
+                    model: model
                 )
             }
-            return OpenAILanguageModel(
-                apiKey: s.remoteAPIKey,
-                model: s.remoteModel.isEmpty ? "gpt-4o-mini" : s.remoteModel
-            )
+            return OpenAILanguageModel(apiKey: s.remoteAPIKey, model: model)
         case "anthropic":
             guard !s.remoteAPIKey.isEmpty else { return nil }
-            return AnthropicLanguageModel(
-                apiKey: s.remoteAPIKey,
-                model: s.remoteModel.isEmpty ? "claude-sonnet-4-5-20250929" : s.remoteModel
-            )
+            return AnthropicLanguageModel(apiKey: s.remoteAPIKey, model: model)
+        case "gemini":
+            guard !s.remoteAPIKey.isEmpty else { return nil }
+            return GeminiLanguageModel(apiKey: s.remoteAPIKey, model: model)
         case "ollama":
             let base = s.remoteEndpoint.isEmpty ? "http://localhost:11434" : s.remoteEndpoint
-            return OllamaLanguageModel(
-                baseURL: URL(string: base)!,
-                model: s.remoteModel.isEmpty ? "llama3.2" : s.remoteModel
-            )
+            return OllamaLanguageModel(baseURL: URL(string: base)!, model: model)
         default:
             return nil
         }

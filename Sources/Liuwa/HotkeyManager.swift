@@ -16,6 +16,7 @@ enum HotkeyAction: String, CaseIterable {
     case scrollAIUp
     case scrollAIDown
     case preset1, preset2, preset3, preset4
+    case docPrev, docNext
     case quit
 }
 
@@ -39,7 +40,7 @@ final class HotkeyManager: @unchecked Sendable {
         "7": 0x1A, "8": 0x1C, "9": 0x19, "0": 0x1D,
         "O": 0x1F, "U": 0x20, "I": 0x22, "P": 0x23, "L": 0x25, "J": 0x26,
         "K": 0x28, "N": 0x2D, "M": 0x2E,
-        "↑": 0x7E, "↓": 0x7D,
+        "↑": 0x7E, "↓": 0x7D, "←": 0x7B, "→": 0x7C,
     ]
 
     init() {
