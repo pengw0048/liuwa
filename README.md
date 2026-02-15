@@ -66,7 +66,7 @@ All use **⌘⌥** (Cmd+Option). Configurable in settings (⌘⌥S).
 | ⌘⌥↑↓ | Scroll AI response |
 | ⌘⌥X | Toggle screen text capture |
 | ⌘⌥Z | Toggle screenshot capture |
-| ⌘⌥D | Open documents |
+| ⌘⌥D | Toggle document panel |
 | ⌘⌥J/L | Previous/next document |
 | ⌘⌥I/K | Scroll document up/down |
 | ⌘⌥A | Toggle attach document to AI context |
@@ -75,19 +75,12 @@ All use **⌘⌥** (Cmd+Option). Configurable in settings (⌘⌥S).
 
 ## Features
 
-- **Invisible overlay** — `NSWindow.sharingType = .none` hides the window from all screen capture on macOS 26+.
-- **Speech transcription** — local offline transcription via `SpeechTranscriber` (macOS 26). Configurable language.
-- **System audio capture** — captures other apps' audio via Core Audio Process Tap for transcription.
-- **Screen content** — reads text via Accessibility API or takes screenshots with OCR (Apple Vision).
-- **LLM** — on-device Apple Foundation Models, or OpenAI / Anthropic / Gemini / Ollama via [AnyLanguageModel](https://github.com/mattt/AnyLanguageModel).
-- **Configurable UI** — transparency, width, font size, hotkeys, section sizes (draggable dividers), all adjustable with live preview.
-- **Documents** — load reference files from a directory, browse with hotkeys, optionally attach to AI context.
-
-## Configuration
-
-All settings via the in-app settings window (⌘⌥S). Persisted to `~/.liuwa/config.json`.
-
-Documents: place text files in `~/Documents/Liuwa/` (configurable). Use ⌘⌥D to open, ⌘⌥J/L to switch, ⌘⌥I/K to scroll.
+- **Invisible overlay** — hidden from screenshots, recordings, and screen sharing (macOS 26+).
+- **Transcription** — mic and system audio, local (SpeechTranscriber), configurable language.
+- **Screen context** — Accessibility text or screenshot/OCR for the LLM.
+- **LLM** — Apple on-device or OpenAI / Anthropic / Gemini / Ollama ([AnyLanguageModel](https://github.com/mattt/AnyLanguageModel)).
+- **Documents** — reference folder, ⌘⌥D to show panel, ⌘⌥J/L to switch file, optional attach to context.
+- **Settings** — transparency, size, hotkeys, section ratios (⌘⌥S); saved to `~/.liuwa/config.json`.
 
 ## Project Structure
 
