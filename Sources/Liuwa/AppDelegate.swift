@@ -53,8 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         let desc = NSTextField(wrappingLabelWithString:
             "Liuwa uses an invisible overlay with global hotkeys. " +
             "Without these permissions, hotkeys and capture won't work.\n\n" +
-            "Since Liuwa runs from Terminal, grant permissions to your terminal app " +
-            "(e.g. Terminal, iTerm) in System Settings, then click Continue.")
+            "Grant all permissions in System Settings, then click Continue.")
         desc.font = .systemFont(ofSize: 12)
         desc.frame = NSRect(x: 20, y: h - 120, width: w - 40, height: 72)
         root.addSubview(desc)

@@ -12,19 +12,23 @@ Built on macOS public APIs only — no private frameworks, no root required.
 
 ## Quick Install
 
-One-liner to download and run (no browser quarantine issues):
+Paste into Terminal:
 
 ```bash
-curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa-arm64 -o liuwa && chmod +x liuwa && ./liuwa
+curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa.app.zip -o /tmp/Liuwa.app.zip && unzip -o /tmp/Liuwa.app.zip -d /Applications && rm /tmp/Liuwa.app.zip && open /Applications/Liuwa.app
 ```
 
-If you downloaded via browser and macOS blocks it, run `xattr -cr Liuwa-arm64` first.
+This downloads Liuwa.app to `/Applications` and launches it. Permissions are attributed to "Liuwa" (not Terminal).
 
 ## Build from Source
 
 ```bash
 swift build
 .build/debug/Liuwa
+
+# Or build as .app:
+./scripts/bundle.sh
+open Liuwa.app
 ```
 
 ## Permissions
@@ -35,7 +39,7 @@ On first launch, Liuwa shows a setup window and requires all of the following be
 - **Microphone** — speech transcription (macOS may also ask for **Speech Recognition** for the local model)
 - **Screen Recording** — screenshot-based screen capture when Accessibility text is insufficient
 
-Since Liuwa runs from Terminal, grant permissions to **Terminal** (or whichever terminal app you use) in System Settings. The setup window has buttons to open each settings pane. Click **Continue** after all three are granted.
+The setup window has buttons to open each settings pane. Grant permissions to **Liuwa** (if installed as .app) or your **terminal app** (if running the binary directly). Click **Continue** after all three are granted.
 
 ## Hotkeys
 
@@ -88,7 +92,8 @@ To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other tex
 ## Building release binaries
 
 ```bash
-swift build -c release    # binary at .build/release/Liuwa
+swift build -c release          # binary at .build/release/Liuwa
+./scripts/bundle.sh             # .app bundle at Liuwa.app
 ```
 
 ## How the invisibility works
