@@ -1,8 +1,8 @@
-# Liuwa
+# Liuwa / 六娃
 
 An open-source macOS AI assistant with a screen-capture-invisible overlay window. The overlay is not visible in screenshots, screen recordings, or screen sharing (Zoom, Google Meet, etc.), but remains fully interactive on your physical display.
 
-Built on macOS public APIs only -- no private frameworks, no root required.
+Built on macOS public APIs only — no private frameworks, no root required.
 
 ## Requirements
 
@@ -21,24 +21,25 @@ Or build and run separately:
 
 ```bash
 swift build
-.build/arm64-apple-macosx/debug/Liuwa
+.build/debug/Liuwa
 ```
 
 If you need to build to a specific directory (e.g. for corporate security tools that whitelist certain paths):
 
 ```bash
 swift build --scratch-path /some/whitelisted/path
-/some/whitelisted/path/arm64-apple-macosx/debug/Liuwa
+/some/whitelisted/path/debug/Liuwa
 ```
 
 ## Permissions
 
-On first launch, macOS will prompt for the following (System Settings > Privacy & Security):
+On first launch, Liuwa shows a setup window and requires all of the following before you can continue (System Settings > Privacy & Security):
 
-- **Accessibility** -- required for global hotkeys (CGEventTap) and reading on-screen text via the Accessibility API
-- **Microphone** -- for speech transcription
-- **Speech Recognition** -- for the local SpeechTranscriber model
-- **Screen Recording** -- for screenshot-based screen capture (only used when Accessibility text extraction is insufficient)
+- **Accessibility** — global hotkeys (CGEventTap) and reading on-screen text via the Accessibility API
+- **Microphone** — speech transcription (macOS may also ask for **Speech Recognition** for the local model)
+- **Screen Recording** — screenshot-based screen capture when Accessibility text is insufficient
+
+Grant each permission (use the buttons in the setup window to open the right panes), then click **Continue**. Only after all three are granted does the app enter invisible overlay mode.
 
 ## Hotkeys
 
@@ -56,10 +57,13 @@ Default bindings:
 | ⌘⌥1-4 | Send AI preset (Reply / Summarize / Solve / Improve) |
 | ⌘⌥X | Cycle screen text capture (off / on) |
 | ⌘⌥Z | Cycle screenshot capture (off / on) |
+| ⌘⌥W | Clear transcription |
 | ⌘⌥C | Clear AI conversation |
 | ⌘⌥↑↓ | Scroll AI response |
-| ⌘⌥←→ | Previous/next document |
 | ⌘⌥D | Open documents panel |
+| ⌘⌥J / ⌘⌥L | Previous/next document |
+| ⌘⌥I / ⌘⌥K | Scroll document up/down |
+| ⌘⌥A | Toggle attach document to AI context |
 | ⌘⌥S | Open settings |
 | ⌘⌥Q | Quit |
 
@@ -83,7 +87,7 @@ All settings are configurable through the in-app settings window (⌘⌥S). Sett
 
 Supported LLM providers: Local (Apple Foundation Models), OpenAI, Anthropic (Claude), Google Gemini, Ollama. Select a provider and fill in the credentials in the settings window.
 
-To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other text files in `~/Documents/Liuwa/` (configurable in settings). Press ⌘⌥D to open docs, then ⌘⌥←/→ to navigate between files.
+To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other text files in `~/Documents/Liuwa/` (configurable in settings). Press ⌘⌥D to open docs; use ⌘⌥J/L to switch documents and ⌘⌥I/K to scroll within the current document.
 
 ## Building release binaries
 
@@ -91,8 +95,7 @@ To build an optimized release binary for your architecture:
 
 ```bash
 swift build -c release
-# Binary at: .build/arm64-apple-macosx/release/Liuwa  (Apple Silicon)
-# or:        .build/x86_64-apple-macosx/release/Liuwa  (Intel)
+# Binary at: .build/release/Liuwa  (or add --arch arm64 / --arch x86_64 as needed)
 ```
 
 To build a universal binary (both arm64 and x86_64):
@@ -104,14 +107,14 @@ swift build -c release --arch arm64 --arch x86_64
 
 ## How the invisibility works
 
-macOS windows have a `sharingType` property. Setting it to `.none` tells the window server to exclude the window from all capture APIs, including ScreenCaptureKit (used by QuickTime, Zoom, Meet, OBS, and most modern tools) and the legacy `CGWindowListCreateImage` API.
+The overlay window uses `NSWindow.sharingType = .none`. On supported macOS versions this tells the window server to exclude the window from capture APIs (e.g. QuickTime, Zoom, Meet, OBS). The window remains visible on your physical display.
 
 ## Project structure
 
 ```
 Sources/Liuwa/
   main.swift                 -- App entry point
-  AppDelegate.swift          -- Initializes and wires all components
+  AppDelegate.swift          -- Launch, permission setup window, wires components
   GhostWindow.swift          -- NSWindow subclass with sharingType=none
   OverlayController.swift    -- Overlay panel layout and content management
   OverlayConfig.swift        -- User settings, load/save from ~/.liuwa/config.json
@@ -124,6 +127,10 @@ Sources/Liuwa/
   DocumentManager.swift      -- Reference document loading
   Info.plist                 -- Privacy permission descriptions
 ```
+
+## What does Liuwa mean?
+
+**Liuwa** (六娃) is the sixth of the seven Calabash Brothers (葫芦娃) in the classic Chinese animated series. The sixth brother’s power is **invisibility** — he can become invisible at will. The app is named after him because its main trick is an overlay that is invisible to screen capture and screen sharing, while still visible and usable on your own screen.
 
 ## License
 
