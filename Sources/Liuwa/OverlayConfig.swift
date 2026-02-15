@@ -1,8 +1,24 @@
 import AppKit
 import Foundation
+import Speech
 
 final class AppSettings: @unchecked Sendable {
     static let shared = AppSettings()
+
+    /// Cached transcription locales fetched from SpeechTranscriber.supportedLocales
+    @MainActor static var cachedTranscriptionLocales: [(id: String, name: String)]?
+
+    /// Fetch supported locales from SpeechTranscriber (async, call once at launch)
+    @MainActor static func fetchSupportedLocales() async {
+        let supported = await SpeechTranscriber.supportedLocales
+        var result: [(String, String)] = []
+        for loc in supported {
+            let name = Locale.current.localizedString(forIdentifier: loc.identifier) ?? loc.identifier
+            result.append((loc.identifier, name))
+        }
+        result.sort { $0.1 < $1.1 }
+        cachedTranscriptionLocales = result
+    }
 
     // Appearance
     var width: CGFloat = 380

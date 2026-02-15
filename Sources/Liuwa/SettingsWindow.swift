@@ -308,27 +308,15 @@ private struct SettingsSnapshot {
 private final class FlippedView: NSView { override var isFlipped: Bool { true } }
 
 extension SettingsWindow {
-    /// Common transcription locales for macOS SpeechTranscriber
+    /// Returns cached locales from SpeechTranscriber.supportedLocales, with a small fallback
     static func transcriptionLocales() -> [(id: String, name: String)] {
-        let ids = [
-            "en-US", "en-GB", "en-AU", "en-IN",
-            "zh-Hans", "zh-Hant",
-            "ja-JP", "ko-KR",
-            "es-ES", "es-MX",
-            "fr-FR", "fr-CA",
-            "de-DE", "it-IT", "pt-BR", "pt-PT",
-            "ru-RU", "ar-SA", "hi-IN",
-            "nl-NL", "sv-SE", "da-DK", "nb-NO", "fi-FI",
-            "pl-PL", "tr-TR", "uk-UA", "th-TH", "vi-VN",
-            "id-ID", "ms-MY", "ro-RO", "cs-CZ", "hu-HU",
-            "el-GR", "he-IL", "ca-ES", "hr-HR", "sk-SK",
-        ]
-        var result: [(String, String)] = []
-        for id in ids {
-            let name = Locale.current.localizedString(forIdentifier: id) ?? id
-            result.append((id, name))
+        if let cached = AppSettings.cachedTranscriptionLocales, !cached.isEmpty {
+            return cached
         }
-        return result
+        // Fallback if async fetch hasn't completed yet
+        let ids = ["en-US", "en-GB", "zh-Hans", "zh-Hant", "ja-JP", "ko-KR",
+                    "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR", "ru-RU"]
+        return ids.map { ($0, Locale.current.localizedString(forIdentifier: $0) ?? $0) }
     }
 }
 
