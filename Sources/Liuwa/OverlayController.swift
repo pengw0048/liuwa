@@ -20,7 +20,7 @@ private final class SectionView {
         container = NSView(frame: frame)
 
         let hdrH: CGFloat = hasSecondHint ? 26 : 14
-        let sep = NSView(frame: NSRect(x: 0, y: frame.height - 2, width: frame.width, height: 2))
+        let sep = NSView(frame: NSRect(x: 0, y: frame.height - 1, width: frame.width, height: 1))
         sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor(white: 1, alpha: 0.35).cgColor
         container.addSubview(sep)
 
@@ -197,7 +197,7 @@ final class OverlayController: @unchecked Sendable {
         topLine.textColor = NSColor(white: 1, alpha: 0.5)
         topLine.frame = NSRect(x: 4, y: 1, width: panelW - 8, height: 12)
         topLine.isEditable = false; topLine.isBezeled = false; topLine.drawsBackground = false
-        topLine.alignment = .center
+        topLine.alignment = .left
         topBar.addSubview(topLine)
         root.addSubview(topBar)
 
@@ -269,7 +269,7 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let ghost = window.ghostModeOn ? "👻" : "👁"
         let click = window.clickThroughOn ? "🔒" : "🖱"
-        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  🔧\(s.keyFor("openSettings")) cfg  ❌\(s.keyFor("quit")) quit"
+        return "Liuwa  \(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  🔧\(s.keyFor("openSettings")) cfg  ❌\(s.keyFor("quit")) quit"
     }
 
     private func buildCollapsedLine() -> String {
@@ -313,8 +313,8 @@ final class OverlayController: @unchecked Sendable {
         }
         sections[.transcription]?.hintLabel.stringValue = buildTranscriptionHints()
         sections[.documents]?.hintLabel.stringValue = buildDocHints()
-        sections[.aiResponse]?.hintLabel.stringValue = buildAIHintsLine1()
-        sections[.aiResponse]?.hint2Label?.stringValue = buildAIHintsLine2()
+        sections[.aiResponse]?.hintLabel.stringValue = buildAIHintsLine2()
+        sections[.aiResponse]?.hint2Label?.stringValue = buildAIHintsLine1()
     }
 
     private func buildSections() {
@@ -337,7 +337,7 @@ final class OverlayController: @unchecked Sendable {
         sections[.documents] = ds; contentContainer.addSubview(ds.container)
 
         // Bottom: AI response
-        let ai = SectionView(hints: buildAIHintsLine1(), hints2: buildAIHintsLine2(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
+        let ai = SectionView(hints: buildAIHintsLine2(), hints2: buildAIHintsLine1(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
         sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
 
         // Set drag handle positions
