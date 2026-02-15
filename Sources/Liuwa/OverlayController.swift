@@ -289,8 +289,7 @@ final class OverlayController: @unchecked Sendable {
 
     private func buildDocClosedHint() -> String {
         let s = AppSettings.shared
-        let attach = s.attachDocToContext ? "🟢" : "⚫"
-        return "📂\(s.keyFor("showDocs")) docs  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
+        return "📂\(s.keyFor("showDocs")) docs"
     }
 
     private func buildAIHintsLine1() -> String {
@@ -383,6 +382,7 @@ final class OverlayController: @unchecked Sendable {
             if p == .documents { sec.setTextScrollTop(panelContents[p] ?? "") }
             else { sec.setText(panelContents[p] ?? "") }
         }
+        contentContainer.window?.invalidateCursorRects(for: contentContainer)
     }
 
     func toggleDocs() {

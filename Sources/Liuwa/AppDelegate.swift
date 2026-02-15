@@ -185,13 +185,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
             if overlay.docsVisible { docs.showDocuments() }
         case .scrollDocUp:         if overlay.docsVisible { overlay.scrollDocUp() }
         case .scrollDocDown:       if overlay.docsVisible { overlay.scrollDocDown() }
-        case .docPrev:
-            if !overlay.docsVisible { overlay.toggleDocs() }
-            docs.previousDocument()
-        case .docNext:
-            if !overlay.docsVisible { overlay.toggleDocs() }
-            docs.nextDocument()
-        case .toggleAttachDoc:     s.attachDocToContext.toggle(); s.save(); overlay.refreshStatus()
+        case .docPrev:             if overlay.docsVisible { docs.previousDocument() }
+        case .docNext:             if overlay.docsVisible { docs.nextDocument() }
+        case .toggleAttachDoc:
+            guard overlay.docsVisible else { break }
+            s.attachDocToContext.toggle(); s.save(); overlay.refreshStatus()
         case .openSettings:        settings.toggle()
         case .cycleScreenText:     s.sendScreenText.toggle(); s.save(); overlay.refreshStatus()
         case .cycleScreenshot:     s.sendScreenshot.toggle(); s.save(); overlay.refreshStatus()
