@@ -20,8 +20,8 @@ private final class SectionView {
         container = NSView(frame: frame)
 
         let hdrH: CGFloat = hasSecondHint ? 26 : 14
-        let sep = NSView(frame: NSRect(x: 0, y: frame.height - 1, width: frame.width, height: 1))
-        sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor(white: 1, alpha: 0.12).cgColor
+        let sep = NSView(frame: NSRect(x: 0, y: frame.height - 2, width: frame.width, height: 2))
+        sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor(white: 1, alpha: 0.35).cgColor
         container.addSubview(sep)
 
         hintLabel = NSTextField(labelWithString: hints)
@@ -214,6 +214,7 @@ final class OverlayController: @unchecked Sendable {
     }
 
     // ── Divider drag logic ──
+    // macOS Y increases upward; drag up (positive delta) → divider moves up
     private func handleDividerDrag(handle: Int, delta: CGFloat) {
         let s = AppSettings.shared
         let h = contentContainer.frame.height
@@ -222,31 +223,20 @@ final class OverlayController: @unchecked Sendable {
 
         if handle == 0 {
             // Between transcription (top) and documents (middle)
-            // Drag up → trans grows, docs shrinks
-            var newTrans = s.transcriptionRatio + ratioDelta
-            var newDoc = s.docRatio - ratioDelta
-            newTrans = max(minRatio, min(newTrans, 1.0 - s.docRatio - minRatio))
-            newDoc = max(minRatio, min(newDoc, 1.0 - s.transcriptionRatio - minRatio))
-            // Re-clamp together
-            let maxTrans = 1.0 - minRatio - minRatio
-            newTrans = min(newTrans, maxTrans)
-            newDoc = max(minRatio, 1.0 - newTrans - max(minRatio, 1.0 - newTrans - newDoc))
-            newDoc = max(minRatio, s.docRatio - ratioDelta)
-            newTrans = max(minRatio, s.transcriptionRatio + ratioDelta)
-            // Ensure AI section has minimum
-            if 1.0 - newTrans - newDoc < minRatio {
-                return
-            }
+            // Drag up → trans shrinks, docs grows
+            var newTrans = s.transcriptionRatio - ratioDelta
+            var newDoc = s.docRatio + ratioDelta
+            newTrans = max(minRatio, newTrans)
+            newDoc = max(minRatio, newDoc)
+            if 1.0 - newTrans - newDoc < minRatio { return }
             s.transcriptionRatio = newTrans
             s.docRatio = newDoc
         } else if handle == 1 {
             // Between documents (middle) and AI (bottom)
-            // Drag up → docs grows, AI shrinks
-            var newDoc = s.docRatio + ratioDelta
+            // Drag up → docs shrinks, AI grows
+            var newDoc = s.docRatio - ratioDelta
             newDoc = max(minRatio, newDoc)
-            if 1.0 - s.transcriptionRatio - newDoc < minRatio {
-                return
-            }
+            if 1.0 - s.transcriptionRatio - newDoc < minRatio { return }
             s.docRatio = newDoc
         }
 
