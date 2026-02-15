@@ -12,18 +12,16 @@ Built on macOS public APIs only — no private frameworks, no root required.
 
 ## Build & Run
 
-Build as a macOS `.app` bundle (recommended — permissions are attributed to Liuwa instead of Terminal):
-
-```bash
-./scripts/bundle.sh          # builds release arm64 by default
-open Liuwa.app               # double-click also works from Finder
-```
-
-Or run directly (note: permissions will be attributed to Terminal.app):
-
 ```bash
 swift build
 .build/debug/Liuwa
+```
+
+To build as a proper `.app` bundle (permissions are attributed to "Liuwa" instead of "Terminal"):
+
+```bash
+./scripts/bundle.sh          # builds release arm64, produces Liuwa.app
+open Liuwa.app               # double-click also works from Finder
 ```
 
 If you need to build to a specific directory (e.g. for corporate security tools that whitelist certain paths):
@@ -31,12 +29,6 @@ If you need to build to a specific directory (e.g. for corporate security tools 
 ```bash
 swift build --scratch-path /some/whitelisted/path
 /some/whitelisted/path/debug/Liuwa
-```
-
-**Note:** If macOS says the app "is damaged and can't be opened" after downloading, remove the quarantine attribute:
-
-```bash
-xattr -cr Liuwa.app
 ```
 
 ## Permissions
@@ -99,14 +91,10 @@ To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other tex
 
 ## Building release binaries
 
-Build and package as `.app` bundle:
-
 ```bash
-./scripts/bundle.sh release arm64     # Apple Silicon
-./scripts/bundle.sh release x86_64    # Intel
+swift build -c release                # release binary at .build/release/Liuwa
+./scripts/bundle.sh release arm64     # or build as Liuwa.app bundle
 ```
-
-The resulting `Liuwa.app` can be copied to `/Applications` or distributed as a zip.
 
 ## How the invisibility works
 
