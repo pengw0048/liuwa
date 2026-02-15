@@ -17,20 +17,6 @@ swift build
 .build/debug/Liuwa
 ```
 
-To build as a proper `.app` bundle (permissions are attributed to "Liuwa" instead of "Terminal"):
-
-```bash
-./scripts/bundle.sh          # builds release arm64, produces Liuwa.app
-open Liuwa.app               # double-click also works from Finder
-```
-
-If you need to build to a specific directory (e.g. for corporate security tools that whitelist certain paths):
-
-```bash
-swift build --scratch-path /some/whitelisted/path
-/some/whitelisted/path/debug/Liuwa
-```
-
 ## Permissions
 
 On first launch, Liuwa shows a setup window and requires all of the following before you can continue (System Settings > Privacy & Security):
@@ -39,7 +25,7 @@ On first launch, Liuwa shows a setup window and requires all of the following be
 - **Microphone** — speech transcription (macOS may also ask for **Speech Recognition** for the local model)
 - **Screen Recording** — screenshot-based screen capture when Accessibility text is insufficient
 
-Grant each permission (use the buttons in the setup window to open the right panes), then click **Continue**. Only after all three are granted does the app enter invisible overlay mode.
+Since Liuwa runs from Terminal, grant permissions to **Terminal** (or whichever terminal app you use) in System Settings. The setup window has buttons to open each settings pane. Click **Continue** after all three are granted.
 
 ## Hotkeys
 
@@ -92,8 +78,7 @@ To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other tex
 ## Building release binaries
 
 ```bash
-swift build -c release                # release binary at .build/release/Liuwa
-./scripts/bundle.sh release arm64     # or build as Liuwa.app bundle
+swift build -c release    # binary at .build/release/Liuwa
 ```
 
 ## How the invisibility works
@@ -117,8 +102,6 @@ Sources/Liuwa/
   LLMManager.swift           -- Foundation Models (local) + remote API
   DocumentManager.swift      -- Reference document loading
   Info.plist                 -- Privacy permission descriptions
-scripts/
-  bundle.sh                  -- Build and package as Liuwa.app
 ```
 
 ## What does Liuwa mean?
