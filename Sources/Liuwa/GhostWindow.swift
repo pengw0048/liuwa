@@ -33,7 +33,6 @@ final class GhostWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         isOpaque = false; backgroundColor = .clear; hasShadow = false
         ignoresMouseEvents = true; hidesOnDeactivate = false
-        // Allow dragging when click-through is off
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
     }
 }

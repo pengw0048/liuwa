@@ -141,6 +141,15 @@ private final class DraggableContainer: NSView {
     }
 }
 
+// MARK: - Draggable Top Bar (window drag from top line only)
+
+@MainActor
+private final class WindowDragBar: NSView {
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
+}
+
 // MARK: - Controller
 
 @MainActor
@@ -150,6 +159,7 @@ final class OverlayController: @unchecked Sendable {
     private var panelContents: [PanelType: String] = [.transcription: "", .aiResponse: "", .documents: ""]
     private var isCollapsed = false
     private var contentContainer: DraggableContainer!
+    private var topBar: WindowDragBar!
     private var topLine: NSTextField!
     private var root: NSView!
 
@@ -180,16 +190,18 @@ final class OverlayController: @unchecked Sendable {
         root.layer?.backgroundColor = s.bgColor.cgColor
         root.layer?.borderWidth = 0.5; root.layer?.borderColor = NSColor(white: 1, alpha: 0.1).cgColor
 
-        let tlH: CGFloat = 12
+        let tlH: CGFloat = 16
+        topBar = WindowDragBar(frame: NSRect(x: 0, y: panelH - tlH, width: panelW, height: tlH))
         topLine = NSTextField(labelWithString: buildTopLine())
         topLine.font = .monospacedSystemFont(ofSize: 8, weight: .medium)
         topLine.textColor = NSColor(white: 1, alpha: 0.5)
-        topLine.frame = NSRect(x: 4, y: panelH - tlH - 1, width: panelW - 8, height: tlH)
+        topLine.frame = NSRect(x: 4, y: 1, width: panelW - 8, height: 12)
         topLine.isEditable = false; topLine.isBezeled = false; topLine.drawsBackground = false
         topLine.alignment = .center
-        root.addSubview(topLine)
+        topBar.addSubview(topLine)
+        root.addSubview(topBar)
 
-        let cH = panelH - tlH - 4
+        let cH = panelH - tlH - 2
         contentContainer = DraggableContainer(frame: NSRect(x: 3, y: 2, width: panelW - 6, height: cH))
         contentContainer.onDrag = { [weak self] handle, delta in self?.handleDividerDrag(handle: handle, delta: delta) }
         contentContainer.onDragEnd = { AppSettings.shared.save() }
@@ -369,9 +381,12 @@ final class OverlayController: @unchecked Sendable {
             root.frame = NSRect(x: 0, y: 0, width: panelW, height: panelH)
             root.layer?.cornerRadius = s.cornerRadius
 
-            topLine.frame = NSRect(x: 4, y: panelH - 12 - 1, width: panelW - 8, height: 12)
-            contentContainer.frame = NSRect(x: 3, y: 2, width: panelW - 6, height: panelH - 16)
+            let tlH: CGFloat = 16
+            topBar.frame = NSRect(x: 0, y: panelH - tlH, width: panelW, height: tlH)
+            topLine.frame = NSRect(x: 4, y: 1, width: panelW - 8, height: 12)
+            contentContainer.frame = NSRect(x: 3, y: 2, width: panelW - 6, height: panelH - tlH - 2)
             contentContainer.isHidden = false
+            topBar.isHidden = false
             buildSections()
 
             isCollapsed = false
@@ -384,6 +399,7 @@ final class OverlayController: @unchecked Sendable {
             root.frame = NSRect(x: 0, y: 0, width: barW, height: collapsedH)
             root.layer?.cornerRadius = 4
 
+            topBar.frame = NSRect(x: 0, y: 0, width: barW, height: collapsedH)
             topLine.frame = NSRect(x: 4, y: 1, width: barW - 8, height: collapsedH - 2)
             contentContainer.isHidden = true
 
@@ -461,8 +477,10 @@ final class OverlayController: @unchecked Sendable {
         root.frame = NSRect(x: 0, y: 0, width: panelW, height: panelH)
         root.layer?.backgroundColor = s.bgColor.cgColor
 
-        topLine.frame = NSRect(x: 4, y: panelH - 12 - 1, width: panelW - 8, height: 12)
-        contentContainer.frame = NSRect(x: 3, y: 2, width: panelW - 6, height: panelH - 16)
+        let tlH: CGFloat = 16
+        topBar.frame = NSRect(x: 0, y: panelH - tlH, width: panelW, height: tlH)
+        topLine.frame = NSRect(x: 4, y: 1, width: panelW - 8, height: 12)
+        contentContainer.frame = NSRect(x: 3, y: 2, width: panelW - 6, height: panelH - tlH - 2)
         buildSections()
         refreshStatus()
     }

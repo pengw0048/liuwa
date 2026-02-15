@@ -10,7 +10,7 @@ final class AppSettings: @unchecked Sendable {
     var marginRight: CGFloat = 24
     var transparency: CGFloat = 0.75
     var cornerRadius: CGFloat = 12
-    var fontSize: CGFloat = 13
+    var fontSize: CGFloat = 10
     var fontName: String = ""
 
     // Layout — three sections
