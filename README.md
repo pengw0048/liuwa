@@ -10,7 +10,17 @@ Built on macOS public APIs only — no private frameworks, no root required.
 - Apple Silicon (M1 or later) -- required for on-device Foundation Models (Apple AI)
 - Swift 6.2+ (included with Xcode 26 Command Line Tools)
 
-## Build & Run
+## Quick Install
+
+One-liner to download and run (no browser quarantine issues):
+
+```bash
+curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa-arm64 -o liuwa && chmod +x liuwa && ./liuwa
+```
+
+If you downloaded via browser and macOS blocks it, run `xattr -cr Liuwa-arm64` first.
+
+## Build from Source
 
 ```bash
 swift build
