@@ -4,6 +4,8 @@
 xcuserdata/
 DerivedData/
 .DS_Store
+Liuwa.app/
+Liuwa-arm64
 *.o
 *.d
 *.swp

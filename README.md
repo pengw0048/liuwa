@@ -12,12 +12,14 @@ Built on macOS public APIs only — no private frameworks, no root required.
 
 ## Build & Run
 
+Build as a macOS `.app` bundle (recommended — permissions are attributed to Liuwa instead of Terminal):
+
 ```bash
-swift build
-swift run Liuwa
+./scripts/bundle.sh          # builds release arm64 by default
+open Liuwa.app               # double-click also works from Finder
 ```
 
-Or build and run separately:
+Or run directly (note: permissions will be attributed to Terminal.app):
 
 ```bash
 swift build
@@ -91,19 +93,14 @@ To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other tex
 
 ## Building release binaries
 
-To build an optimized release binary for your architecture:
+Build and package as `.app` bundle:
 
 ```bash
-swift build -c release
-# Binary at: .build/release/Liuwa  (or add --arch arm64 / --arch x86_64 as needed)
+./scripts/bundle.sh release arm64     # Apple Silicon
+./scripts/bundle.sh release x86_64    # Intel
 ```
 
-To build a universal binary (both arm64 and x86_64):
-
-```bash
-swift build -c release --arch arm64 --arch x86_64
-# Binary at: .build/apple/Products/Release/Liuwa
-```
+The resulting `Liuwa.app` can be copied to `/Applications` or distributed as a zip.
 
 ## How the invisibility works
 
@@ -126,6 +123,8 @@ Sources/Liuwa/
   LLMManager.swift           -- Foundation Models (local) + remote API
   DocumentManager.swift      -- Reference document loading
   Info.plist                 -- Privacy permission descriptions
+scripts/
+  bundle.sh                  -- Build and package as Liuwa.app
 ```
 
 ## What does Liuwa mean?
