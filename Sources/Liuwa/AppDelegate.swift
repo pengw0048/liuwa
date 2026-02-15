@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupEditMenu()
 
-        if AXIsProcessTrusted() {
+        if allPermissionsGranted() {
             launchApp()
         } else {
             showPermissionWindow()
@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         btn.bezelStyle = .rounded
         btn.font = .systemFont(ofSize: 14, weight: .semibold)
         btn.frame = NSRect(x: w - 130, y: 16, width: 110, height: 32)
-        btn.isEnabled = AXIsProcessTrusted()
+        btn.isEnabled = allPermissionsGranted()
         btn.keyEquivalent = "\r"
         root.addSubview(btn)
         continueBtn = btn
@@ -126,14 +126,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         return lbl
     }
 
+    private func allPermissionsGranted() -> Bool {
+        AXIsProcessTrusted()
+        && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        && CGPreflightScreenCaptureAccess()
+    }
+
     @MainActor private func updatePermStatus() {
         let ax = AXIsProcessTrusted()
         let mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         let scr = CGPreflightScreenCaptureAccess()
-        axLabel?.stringValue  = "\(ax  ? "✅" : "❌")  Accessibility (required)"
-        micLabel?.stringValue = "\(mic ? "✅" : "❌")  Microphone (for transcription)"
-        scrLabel?.stringValue = "\(scr ? "✅" : "❌")  Screen Recording (for screen capture)"
-        continueBtn?.isEnabled = ax
+        axLabel?.stringValue  = "\(ax  ? "✅" : "❌")  Accessibility"
+        micLabel?.stringValue = "\(mic ? "✅" : "❌")  Microphone"
+        scrLabel?.stringValue = "\(scr ? "✅" : "❌")  Screen Recording"
+        continueBtn?.isEnabled = ax && mic && scr
     }
 
     @objc private func openAccessibilitySettings() {
@@ -153,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     }
 
     @objc @MainActor private func permContinue() {
-        guard AXIsProcessTrusted() else { return }
+        guard allPermissionsGranted() else { return }
         permTimer?.invalidate(); permTimer = nil
         setupWindow?.close(); setupWindow = nil
         // Hide dock icon again
