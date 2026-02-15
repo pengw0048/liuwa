@@ -1,0 +1,282 @@
+import AppKit
+
+enum PanelType: String, CaseIterable {
+    case transcription, aiResponse, documents
+}
+
+// MARK: - Section
+
+@MainActor
+private final class SectionView {
+    let container: NSView
+    let hintLabel: NSTextField
+    let hint2Label: NSTextField?  // optional second line
+    let scrollView: NSScrollView
+    let textView: NSTextView
+
+    init(hints: String, hints2: String? = nil, frame: NSRect, font: NSFont) {
+        container = NSView(frame: frame)
+
+        let hdrH: CGFloat = hints2 != nil ? 26 : 14
+        let sep = NSView(frame: NSRect(x: 0, y: frame.height - 1, width: frame.width, height: 1))
+        sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor(white: 1, alpha: 0.12).cgColor
+        container.addSubview(sep)
+
+        hintLabel = NSTextField(labelWithString: hints)
+        hintLabel.font = .monospacedSystemFont(ofSize: 9, weight: .medium)
+        hintLabel.textColor = NSColor(white: 1, alpha: 0.55)
+        hintLabel.frame = NSRect(x: 4, y: frame.height - 13, width: frame.width - 8, height: 12)
+        hintLabel.isEditable = false; hintLabel.isBezeled = false; hintLabel.drawsBackground = false
+        container.addSubview(hintLabel)
+
+        if let hints2 {
+            let h2 = NSTextField(labelWithString: hints2)
+            h2.font = .monospacedSystemFont(ofSize: 9, weight: .medium)
+            h2.textColor = NSColor(white: 1, alpha: 0.55)
+            h2.frame = NSRect(x: 4, y: frame.height - 25, width: frame.width - 8, height: 12)
+            h2.isEditable = false; h2.isBezeled = false; h2.drawsBackground = false
+            container.addSubview(h2)
+            hint2Label = h2
+        } else {
+            hint2Label = nil
+        }
+
+        let sf = NSRect(x: 2, y: 0, width: frame.width - 4, height: frame.height - hdrH - 2)
+        scrollView = NSScrollView(frame: sf)
+        scrollView.hasVerticalScroller = true; scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true; scrollView.drawsBackground = false
+        scrollView.scrollerStyle = .overlay; scrollView.scrollerKnobStyle = .light
+
+        let sz = scrollView.contentSize
+        textView = NSTextView(frame: NSRect(x: 0, y: 0, width: sz.width, height: sz.height))
+        textView.isEditable = false; textView.isSelectable = false; textView.drawsBackground = false
+        textView.textColor = .white
+        textView.font = font
+        textView.textContainerInset = NSSize(width: 4, height: 2)
+        textView.isVerticallyResizable = true; textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true; textView.autoresizingMask = [.width]
+        scrollView.documentView = textView
+        container.addSubview(scrollView)
+    }
+
+    func setText(_ t: String) { textView.string = t; textView.scrollToEndOfDocument(nil) }
+    func pageUp() {
+        let v = scrollView.contentView.bounds
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: max(v.origin.y - v.height * 0.8, 0)))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+    func pageDown() {
+        let v = scrollView.contentView.bounds; let dh = textView.frame.height
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: min(v.origin.y + v.height * 0.8, max(dh - v.height, 0))))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+}
+
+// MARK: - Controller
+
+@MainActor
+final class OverlayController: @unchecked Sendable {
+    let window: GhostWindow
+    private var sections: [PanelType: SectionView] = [:]
+    private var panelContents: [PanelType: String] = [.transcription: "", .aiResponse: "", .documents: ""]
+    private var isCollapsed = false
+    private var contentContainer: NSView!
+    private var topLine: NSTextField!
+    private var root: NSView!
+
+    private var panelW: CGFloat, panelH: CGFloat
+    private var micActive = false, sysActive = false
+
+    private let collapsedH: CGFloat = 16
+
+    init() {
+        let s = AppSettings.shared
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let sw = screen.frame.width, sh = screen.frame.height
+        panelW = s.width
+        panelH = min(sh * s.heightRatio, sh - 60)
+
+        let frame = NSRect(x: sw - panelW - s.marginRight, y: (sh - panelH) / 2, width: panelW, height: panelH)
+        window = GhostWindow(contentRect: frame)
+        window.setBaseAlpha(s.transparency)
+
+        root = NSView(frame: NSRect(x: 0, y: 0, width: panelW, height: panelH))
+        root.wantsLayer = true
+        root.layer?.cornerRadius = s.cornerRadius; root.layer?.masksToBounds = true
+        root.layer?.backgroundColor = s.bgColor.cgColor
+        root.layer?.borderWidth = 0.5; root.layer?.borderColor = NSColor(white: 1, alpha: 0.1).cgColor
+
+        let tlH: CGFloat = 12
+        topLine = NSTextField(labelWithString: buildTopLine())
+        topLine.font = .monospacedSystemFont(ofSize: 8, weight: .medium)
+        topLine.textColor = NSColor(white: 1, alpha: 0.5)
+        topLine.frame = NSRect(x: 4, y: panelH - tlH - 1, width: panelW - 8, height: tlH)
+        topLine.isEditable = false; topLine.isBezeled = false; topLine.drawsBackground = false
+        topLine.alignment = .center
+        root.addSubview(topLine)
+
+        let cH = panelH - tlH - 4
+        contentContainer = NSView(frame: NSRect(x: 3, y: 2, width: panelW - 6, height: cH))
+        root.addSubview(contentContainer)
+
+        buildSections()
+        window.contentView = root
+        window.alphaValue = s.transparency
+        window.orderFrontRegardless()
+    }
+
+    // ── Top line: global toggles with descriptions ──
+    private func buildTopLine() -> String {
+        let s = AppSettings.shared
+        let ghost = window.ghostModeOn ? "👻" : "👁"
+        let click = window.clickThroughOn ? "🔒" : "🖱"
+        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  ⚙\(s.keyFor("openSettings")) cfg  📂\(s.keyFor("showDocs")) docs  ❌\(s.keyFor("quit")) quit"
+    }
+
+    private func buildCollapsedLine() -> String {
+        let s = AppSettings.shared
+        return "⌘⌥\(s.keyFor("toggleOverlay")) expand  |  Liuwa"
+    }
+
+    // ── Transcription hints ──
+    private func buildTranscriptionHints() -> String {
+        let s = AppSettings.shared
+        let mic = micActive ? "🟢" : "⚫"
+        let sys = sysActive ? "🟢" : "⚫"
+        return "\(mic)🎤\(s.keyFor("toggleTranscription")) mic  \(sys)🔊\(s.keyFor("toggleSystemAudio")) sys"
+    }
+
+    // ── AI hints: line 1 = presets, line 2 = tools ──
+    private func buildAIHintsLine1() -> String {
+        let s = AppSettings.shared
+        return s.presets.enumerated().map { "\($0.offset+1):\($0.element.label)" }.joined(separator: " ")
+    }
+
+    private func buildAIHintsLine2() -> String {
+        let s = AppSettings.shared
+        let txt = s.sendScreenText ? "🟢" : "⚫"
+        let img = s.sendScreenshot ? "🟢" : "⚫"
+        return "\(txt)📝\(s.keyFor("cycleScreenText")) text  \(img)📷\(s.keyFor("cycleScreenshot")) img  🧹\(s.keyFor("clearAI")) clear  ↑↓ scroll"
+    }
+
+    func refreshStatus() {
+        if isCollapsed {
+            topLine.stringValue = buildCollapsedLine()
+        } else {
+            topLine.stringValue = buildTopLine()
+        }
+        sections[.transcription]?.hintLabel.stringValue = buildTranscriptionHints()
+        sections[.aiResponse]?.hintLabel.stringValue = buildAIHintsLine1()
+        sections[.aiResponse]?.hint2Label?.stringValue = buildAIHintsLine2()
+    }
+
+    private func buildSections() {
+        contentContainer.subviews.forEach { $0.removeFromSuperview() }
+        sections.removeAll()
+        let s = AppSettings.shared
+        let w = contentContainer.frame.width, h = contentContainer.frame.height
+        let gap: CGFloat = 2
+        let transH = (h - gap) * s.transcriptionRatio
+        let aiH = (h - gap) * (1.0 - s.transcriptionRatio)
+
+        let ts = SectionView(hints: buildTranscriptionHints(), frame: NSRect(x: 0, y: h - transH, width: w, height: transH), font: s.font)
+        sections[.transcription] = ts; contentContainer.addSubview(ts.container)
+
+        let ai = SectionView(hints: buildAIHintsLine1(), hints2: buildAIHintsLine2(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
+        sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
+
+        for (p, sec) in sections { sec.setText(panelContents[p] ?? "") }
+    }
+
+    // MARK: Public
+
+    func toggleVisibility() {
+        let s = AppSettings.shared
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let sw = screen.frame.width, sh = screen.frame.height
+
+        if isCollapsed {
+            panelW = s.width
+            panelH = min(sh * s.heightRatio, sh - 60)
+            let frame = NSRect(x: sw - panelW - s.marginRight, y: (sh - panelH) / 2, width: panelW, height: panelH)
+            window.setFrame(frame, display: false)
+
+            root.frame = NSRect(x: 0, y: 0, width: panelW, height: panelH)
+            root.layer?.cornerRadius = s.cornerRadius
+
+            topLine.frame = NSRect(x: 4, y: panelH - 12 - 1, width: panelW - 8, height: 12)
+            contentContainer.frame = NSRect(x: 3, y: 2, width: panelW - 6, height: panelH - 16)
+            contentContainer.isHidden = false
+            buildSections()
+
+            isCollapsed = false
+            refreshStatus()
+        } else {
+            let barW: CGFloat = 160
+            let frame = NSRect(x: sw - barW - s.marginRight, y: sh - collapsedH - 40, width: barW, height: collapsedH)
+            window.setFrame(frame, display: false)
+
+            root.frame = NSRect(x: 0, y: 0, width: barW, height: collapsedH)
+            root.layer?.cornerRadius = 4
+
+            topLine.frame = NSRect(x: 4, y: 1, width: barW - 8, height: collapsedH - 2)
+            contentContainer.isHidden = true
+
+            isCollapsed = true
+            refreshStatus()
+        }
+    }
+
+    func toggleGhostMode() { window.toggleGhostMode(); refreshStatus() }
+    func toggleClickThrough() { window.toggleClickThrough(); refreshStatus() }
+
+    func showPanel(_ p: PanelType, withText t: String? = nil) {
+        if let t { panelContents[p] = t }; sections[p]?.setText(panelContents[p] ?? "")
+    }
+    func appendText(_ t: String, to p: PanelType) {
+        panelContents[p] = (panelContents[p] ?? "") + t; sections[p]?.setText(panelContents[p] ?? "")
+    }
+    func setText(_ t: String, for p: PanelType) { panelContents[p] = t; sections[p]?.setText(t) }
+    func getPanelContent(_ p: PanelType) -> String? { panelContents[p] }
+    func switchToPanel(_ p: PanelType) { showPanel(p) }
+    func cyclePanel() {}
+
+    func setMicActive(_ a: Bool) { micActive = a; refreshStatus() }
+    func setSysAudioActive(_ a: Bool) { sysActive = a; refreshStatus() }
+
+    func scrollAIUp() { sections[.aiResponse]?.pageUp() }
+    func scrollAIDown() { sections[.aiResponse]?.pageDown() }
+
+    func refreshPresetLabels() { refreshStatus() }
+
+    /// Full rebuild: resize window, rebuild sections, refresh everything
+    func applySettings() {
+        let s = AppSettings.shared
+        guard !isCollapsed else {
+            window.setBaseAlpha(s.transparency); window.alphaValue = s.transparency
+            return
+        }
+
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let sw = screen.frame.width, sh = screen.frame.height
+        panelW = s.width
+        panelH = min(sh * s.heightRatio, sh - 60)
+
+        let frame = NSRect(x: sw - panelW - s.marginRight, y: (sh - panelH) / 2, width: panelW, height: panelH)
+        window.setFrame(frame, display: false)
+        window.setBaseAlpha(s.transparency); window.alphaValue = s.transparency
+
+        root.frame = NSRect(x: 0, y: 0, width: panelW, height: panelH)
+        root.layer?.backgroundColor = s.bgColor.cgColor
+
+        topLine.frame = NSRect(x: 4, y: panelH - 12 - 1, width: panelW - 8, height: 12)
+        contentContainer.frame = NSRect(x: 3, y: 2, width: panelW - 6, height: panelH - 16)
+        buildSections()
+        refreshStatus()
+    }
+
+    /// Live preview during slider drag — does full visual update
+    func livePreview() {
+        applySettings()
+    }
+}
