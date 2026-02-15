@@ -101,7 +101,7 @@ final class SystemAudioManager {
         let tapUID = try getStringProperty(forObject: newTapID, selector: kAudioTapPropertyTapUID)
         aggregateDeviceID = try createAggregateDevice(tapUID: tapUID)
 
-        let locale = Locale(identifier: "zh-Hans")
+        let locale = Locale(identifier: AppSettings.shared.transcriptionLocale)
         let newTranscriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
         self.transcriber = newTranscriber
 

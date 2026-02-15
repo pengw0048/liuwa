@@ -86,7 +86,7 @@ final class TranscriptionManager {
     // MARK: - Private Setup
 
     private func setupAndRun() async throws {
-        let locale = Locale(identifier: "zh-Hans")
+        let locale = Locale(identifier: AppSettings.shared.transcriptionLocale)
 
         let newTranscriber = SpeechTranscriber(
             locale: locale,

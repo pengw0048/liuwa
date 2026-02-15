@@ -125,11 +125,22 @@ final class SettingsWindow {
             doc.addSubview(e); endF = e; y += 22
         }
 
+        lbl("Response language:")
+        let langCB = NSComboBox(frame: NSRect(x: fx, y: y-2, width: 160, height: 22))
+        langCB.isEditable = true; langCB.completes = true
+        for l in ["English","Chinese","Japanese","Korean","Spanish","French","German","Arabic","Portuguese","Russian","Hindi"] { langCB.addItem(withObjectValue: l) }
+        langCB.stringValue = s.responseLanguage
+        langCB.font = .systemFont(ofSize: 11); doc.addSubview(langCB); y += 24
+
+        // ── Transcription ──
+        sec("Transcription")
         lbl("Language:")
-        let langP = NSPopUpButton(frame: NSRect(x: fx, y: y-2, width: 110, height: 20))
-        for l in ["English","Chinese","Japanese","Korean","Spanish","French","German"] { langP.addItem(withTitle: l) }
-        if let i = ["English","Chinese","Japanese","Korean","Spanish","French","German"].firstIndex(of: s.responseLanguage) { langP.selectItem(at: i) }
-        langP.font = .systemFont(ofSize: 11); doc.addSubview(langP); y += 20
+        let transLocP = NSPopUpButton(frame: NSRect(x: fx, y: y-2, width: 220, height: 20))
+        let locales = Self.transcriptionLocales()
+        for (id, name) in locales { transLocP.addItem(withTitle: "\(name) (\(id))") }
+        if let idx = locales.firstIndex(where: { $0.id == s.transcriptionLocale }) { transLocP.selectItem(at: idx) }
+        else { transLocP.addItem(withTitle: s.transcriptionLocale); transLocP.selectItem(at: transLocP.numberOfItems - 1) }
+        transLocP.font = .systemFont(ofSize: 11); doc.addSubview(transLocP); y += 22
 
         // ── Screen Capture ──
         sec("Screen Capture")
@@ -245,7 +256,8 @@ final class SettingsWindow {
             settingsWindow: self,
             trSl: trSl, wdSl: wdSl, fsSl: fsSl, trV: trV, wdV: wdV, fsV: fsV,
             providerP: providerP, keyF: keyF, modF: modF, endF: endF,
-            langP: langP, txtChk: txtChk, imgChk: imgChk, ssP: ssP,
+            langCB: langCB, transLocP: transLocP, transLocales: locales,
+            txtChk: txtChk, imgChk: imgChk, ssP: ssP,
             attachChk: attachChk,
             pLF: pLF, pPF: pPF, docF: docField, brBtn: brBtn,
             hkFields: hkFields,
@@ -263,6 +275,7 @@ final class SettingsWindow {
 private struct SettingsSnapshot {
     let transparency: CGFloat; let width: CGFloat; let fontSize: CGFloat
     let llmProvider: String; let remoteAPIKey, remoteModel, remoteEndpoint, responseLanguage: String
+    let transcriptionLocale: String
     let sendScreenText, sendScreenshot: Bool; let screenshotMode: String
     let docsDirectory: String; let attachDocToContext: Bool
     let presets: [(String, String)]; let hotkeyBindings: [String: String]
@@ -271,7 +284,8 @@ private struct SettingsSnapshot {
         transparency = s.transparency; width = s.width; fontSize = s.fontSize
         llmProvider = s.llmProvider; remoteAPIKey = s.remoteAPIKey
         remoteModel = s.remoteModel; remoteEndpoint = s.remoteEndpoint
-        responseLanguage = s.responseLanguage; sendScreenText = s.sendScreenText
+        responseLanguage = s.responseLanguage; transcriptionLocale = s.transcriptionLocale
+        sendScreenText = s.sendScreenText
         sendScreenshot = s.sendScreenshot; screenshotMode = s.screenshotMode
         docsDirectory = s.docsDirectory; attachDocToContext = s.attachDocToContext
         presets = s.presets; hotkeyBindings = s.hotkeyBindings
@@ -282,7 +296,8 @@ private struct SettingsSnapshot {
         s.transparency = transparency; s.width = width; s.fontSize = fontSize
         s.llmProvider = llmProvider; s.remoteAPIKey = remoteAPIKey
         s.remoteModel = remoteModel; s.remoteEndpoint = remoteEndpoint
-        s.responseLanguage = responseLanguage; s.sendScreenText = sendScreenText
+        s.responseLanguage = responseLanguage; s.transcriptionLocale = transcriptionLocale
+        s.sendScreenText = sendScreenText
         s.sendScreenshot = sendScreenshot; s.screenshotMode = screenshotMode
         s.docsDirectory = docsDirectory; s.attachDocToContext = attachDocToContext
         s.presets = presets; s.hotkeyBindings = hotkeyBindings
@@ -292,6 +307,31 @@ private struct SettingsSnapshot {
 
 private final class FlippedView: NSView { override var isFlipped: Bool { true } }
 
+extension SettingsWindow {
+    /// Common transcription locales for macOS SpeechTranscriber
+    static func transcriptionLocales() -> [(id: String, name: String)] {
+        let ids = [
+            "en-US", "en-GB", "en-AU", "en-IN",
+            "zh-Hans", "zh-Hant",
+            "ja-JP", "ko-KR",
+            "es-ES", "es-MX",
+            "fr-FR", "fr-CA",
+            "de-DE", "it-IT", "pt-BR", "pt-PT",
+            "ru-RU", "ar-SA", "hi-IN",
+            "nl-NL", "sv-SE", "da-DK", "nb-NO", "fi-FI",
+            "pl-PL", "tr-TR", "uk-UA", "th-TH", "vi-VN",
+            "id-ID", "ms-MY", "ro-RO", "cs-CZ", "hu-HU",
+            "el-GR", "he-IL", "ca-ES", "hr-HR", "sk-SK",
+        ]
+        var result: [(String, String)] = []
+        for id in ids {
+            let name = Locale.current.localizedString(forIdentifier: id) ?? id
+            result.append((id, name))
+        }
+        return result
+    }
+}
+
 // MARK: - Handler
 
 @MainActor
@@ -300,7 +340,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     let trSl, wdSl, fsSl: NSSlider; let trV, wdV, fsV: NSTextField
     let providerP: NSPopUpButton
     let keyF, modF, endF: NSTextField?
-    let langP: NSPopUpButton; let txtChk, imgChk: NSButton; let ssP: NSPopUpButton
+    let langCB: NSComboBox; let transLocP: NSPopUpButton; let transLocales: [(id: String, name: String)]
+    let txtChk, imgChk: NSButton; let ssP: NSPopUpButton
     let attachChk: NSButton
     let pLF, pPF: [NSTextField]; let docF: NSTextField; let brBtn: NSButton
     let hkFields: [(String, NSTextField)]
@@ -311,7 +352,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
          trSl: NSSlider, wdSl: NSSlider, fsSl: NSSlider,
          trV: NSTextField, wdV: NSTextField, fsV: NSTextField,
          providerP: NSPopUpButton, keyF: NSTextField?, modF: NSTextField?, endF: NSTextField?,
-         langP: NSPopUpButton, txtChk: NSButton, imgChk: NSButton, ssP: NSPopUpButton,
+         langCB: NSComboBox, transLocP: NSPopUpButton, transLocales: [(id: String, name: String)],
+         txtChk: NSButton, imgChk: NSButton, ssP: NSPopUpButton,
          attachChk: NSButton,
          pLF: [NSTextField], pPF: [NSTextField], docF: NSTextField, brBtn: NSButton,
          hkFields: [(String, NSTextField)],
@@ -321,7 +363,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         self.trSl = trSl; self.wdSl = wdSl; self.fsSl = fsSl
         self.trV = trV; self.wdV = wdV; self.fsV = fsV
         self.providerP = providerP; self.keyF = keyF; self.modF = modF; self.endF = endF
-        self.langP = langP; self.txtChk = txtChk; self.imgChk = imgChk; self.ssP = ssP
+        self.langCB = langCB; self.transLocP = transLocP; self.transLocales = transLocales
+        self.txtChk = txtChk; self.imgChk = imgChk; self.ssP = ssP
         self.attachChk = attachChk
         self.pLF = pLF; self.pPF = pPF; self.docF = docF; self.brBtn = brBtn
         self.hkFields = hkFields
@@ -385,7 +428,11 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         if let k = keyF { s.remoteAPIKey = k.stringValue }
         if let m = modF { s.remoteModel = m.stringValue }
         if let e = endF { s.remoteEndpoint = e.stringValue }
-        s.responseLanguage = langP.titleOfSelectedItem ?? "English"
+        s.responseLanguage = langCB.stringValue.isEmpty ? "English" : langCB.stringValue
+        let tIdx = transLocP.indexOfSelectedItem
+        if tIdx >= 0 && tIdx < transLocales.count {
+            s.transcriptionLocale = transLocales[tIdx].id
+        }
         s.sendScreenText = txtChk.state == .on
         s.sendScreenshot = imgChk.state == .on
         let ssModes = ["auto", "ocr", "image"]
