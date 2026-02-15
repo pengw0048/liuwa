@@ -461,10 +461,10 @@ final class OverlayController: @unchecked Sendable {
     }
     private func rebuildTranscriptPanel() {
         var combined = ""
-        if !micTranscript.isEmpty { combined += micTranscript }
+        if !micTranscript.isEmpty { combined += "🎤 Me:\n\(micTranscript)" }
         if !sysTranscript.isEmpty {
-            if !combined.isEmpty { combined += "\n---\n" }
-            combined += sysTranscript
+            if !combined.isEmpty { combined += "\n\n" }
+            combined += "🔊 They:\n\(sysTranscript)"
         }
         panelContents[.transcription] = combined
         sections[.transcription]?.setText(combined)
