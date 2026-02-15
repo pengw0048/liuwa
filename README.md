@@ -15,7 +15,7 @@ Built on macOS public APIs only — no private frameworks, no root required.
 Paste into Terminal:
 
 ```bash
-curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa.app.zip -o /tmp/Liuwa.app.zip && unzip -o /tmp/Liuwa.app.zip -d /Applications && rm /tmp/Liuwa.app.zip && open /Applications/Liuwa.app
+curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa-app.zip -o /tmp/Liuwa-app.zip && unzip -o /tmp/Liuwa-app.zip -d /Applications && rm /tmp/Liuwa-app.zip && open /Applications/Liuwa.app
 ```
 
 This downloads Liuwa.app to `/Applications` and launches it. Permissions are attributed to "Liuwa" (not Terminal).
