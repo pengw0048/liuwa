@@ -41,7 +41,7 @@ final class AppSettings: @unchecked Sendable {
     var remoteModel: String = ""
     var remoteEndpoint: String = ""
     var responseLanguage: String = "English"
-    var transcriptionLocale: String = "en-US"
+    var transcriptionLocale: String = "en_US"
 
     // Screen capture
     var sendScreenText: Bool = true      // AX text
@@ -135,7 +135,10 @@ final class AppSettings: @unchecked Sendable {
         // Migration: old config may have use_local_model
         if json["llm_provider"] == nil, let v = json["use_local_model"] as? Bool { llmProvider = v ? "local" : "openai" }
         if let v = json["response_language"] as? String { responseLanguage = v }
-        if let v = json["transcription_locale"] as? String { transcriptionLocale = v }
+        if let v = json["transcription_locale"] as? String {
+            // Normalize: Locale.identifier uses underscores (en_US), not hyphens
+            transcriptionLocale = v.replacingOccurrences(of: "-", with: "_")
+        }
         if let v = json["send_screen_text"] as? Bool { sendScreenText = v }
         if let v = json["send_screenshot"] as? Bool { sendScreenshot = v }
         if let v = json["screenshot_mode"] as? String { screenshotMode = v }

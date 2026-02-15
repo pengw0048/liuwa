@@ -1,7 +1,7 @@
 import AppKit
 import AVFoundation
 
-final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unchecked Sendable {
     var overlay: OverlayController!
     var hotkeys: HotkeyManager!
     var transcription: TranscriptionManager!
@@ -108,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         continueBtn = btn
 
         win.contentView = root
+        win.delegate = self  // Handle window close → quit
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         setupWindow = win
@@ -157,6 +158,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
     @objc private func openScreenSettings() {
         CGRequestScreenCaptureAccess()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // If the permission setup window is closed (X button), quit the app
+        if let win = notification.object as? NSWindow, win === setupWindow {
+            permTimer?.invalidate(); permTimer = nil
+            setupWindow = nil
+            NSApp.terminate(nil)
+        }
     }
 
     @objc @MainActor private func permContinue() {
