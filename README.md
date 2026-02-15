@@ -1,148 +1,119 @@
 # Liuwa / 六娃
 
-An open-source macOS AI assistant with a screen-capture-invisible overlay window. The overlay is not visible in screenshots, screen recordings, or screen sharing (Zoom, Google Meet, etc.), but remains fully interactive on your physical display.
+An open-source macOS AI assistant with a screen-capture-invisible overlay. The overlay is invisible to screenshots, screen recordings, and screen sharing (Zoom, Meet, etc.), but remains fully interactive on your display.
 
 Built on macOS public APIs only — no private frameworks, no root required.
 
 ## Requirements
 
 - macOS 26 (Tahoe) or later
-- Apple Silicon (M1 or later) -- required for on-device Foundation Models (Apple AI)
+- Apple Silicon (M1+) — required for on-device Foundation Models
 - Swift 6.2+ (included with Xcode 26 Command Line Tools)
 
 ## Quick Install
 
-Paste into Terminal:
-
 ```bash
-curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa-app.zip -o /tmp/Liuwa-app.zip && unzip -o /tmp/Liuwa-app.zip -d /Applications && rm /tmp/Liuwa-app.zip && open /Applications/Liuwa.app
+curl -fSL https://github.com/pengw0048/liuwa/releases/latest/download/Liuwa-app.zip \
+  -o /tmp/Liuwa-app.zip && unzip -o /tmp/Liuwa-app.zip -d /Applications \
+  && rm /tmp/Liuwa-app.zip && open /Applications/Liuwa.app
 ```
 
-This downloads Liuwa.app to `/Applications` and launches it. Permissions are attributed to "Liuwa" (not Terminal).
+Downloads `Liuwa.app` to `/Applications` and launches it. Permissions are attributed to "Liuwa" (not Terminal).
 
 ## Build from Source
 
 ```bash
-swift build
-.build/debug/Liuwa
+swift build && .build/debug/Liuwa
 
-# Or build as .app:
-./scripts/bundle.sh
-open Liuwa.app
+# Or as .app bundle:
+./scripts/bundle.sh && open Liuwa.app
 ```
 
-### Code Signing Certificate (recommended)
+### Code Signing (recommended)
 
-By default, `bundle.sh` uses ad-hoc signing. This means macOS treats each rebuild as a new app, and you'll need to re-grant permissions (Accessibility, Microphone, Screen Recording) every time.
-
-To avoid this, create a self-signed "Liuwa Dev" certificate once:
+Without a stable signing identity, macOS requires re-granting permissions after every rebuild. Create a self-signed certificate once:
 
 ```bash
-./scripts/create-cert.sh
+./scripts/create-cert.sh   # one-time, stored in login keychain
 ```
 
-This creates a persistent code signing identity in your login keychain. All subsequent `bundle.sh` runs will sign with it automatically, and macOS will remember permissions across rebuilds.
-
-The script:
-1. Generates a self-signed certificate with code signing key usage
-2. Imports it into your login keychain
-3. Trusts it for code signing (may prompt for your login password)
+All subsequent `bundle.sh` runs sign with it automatically.
 
 ## Permissions
 
-On first launch, Liuwa shows a setup window and requires all of the following before you can continue (System Settings > Privacy & Security):
+On first launch a setup window requires three permissions (System Settings > Privacy & Security):
 
-- **Accessibility** — global hotkeys (CGEventTap) and reading on-screen text via the Accessibility API
-- **Microphone** — speech transcription (macOS may also ask for **Speech Recognition** for the local model)
-- **Screen Recording** — screenshot-based screen capture when Accessibility text is insufficient
+- **Accessibility** — global hotkeys and reading on-screen text
+- **Microphone** — speech transcription
+- **Screen Recording** — screenshot capture
 
-The setup window has buttons to open each settings pane. Grant permissions to **Liuwa** (if installed as .app) or your **terminal app** (if running the binary directly). Click **Continue** after all three are granted.
+Closing the setup window without granting permissions quits the app.
 
 ## Hotkeys
 
-All hotkeys use **Cmd+Option** (⌘⌥) as modifier. Keys are configurable in the settings window (⌘⌥S).
-
-Default bindings:
+All use **⌘⌥** (Cmd+Option). Configurable in settings (⌘⌥S).
 
 | Key | Action |
 |-----|--------|
 | ⌘⌥O | Show/hide overlay |
 | ⌘⌥G | Toggle ghost mode (invisible to capture) |
 | ⌘⌥E | Toggle click-through |
-| ⌘⌥T | Start/stop microphone transcription |
+| ⌘⌥T | Start/stop mic transcription |
 | ⌘⌥Y | Start/stop system audio transcription |
-| ⌘⌥1-4 | Send AI preset (Reply / Summarize / Solve / Improve) |
-| ⌘⌥X | Cycle screen text capture (off / on) |
-| ⌘⌥Z | Cycle screenshot capture (off / on) |
 | ⌘⌥W | Clear transcription |
+| ⌘⌥1-4 | AI presets (Reply / Summarize / Solve / Improve) |
 | ⌘⌥C | Clear AI conversation |
 | ⌘⌥↑↓ | Scroll AI response |
-| ⌘⌥D | Open documents panel |
-| ⌘⌥J / ⌘⌥L | Previous/next document |
-| ⌘⌥I / ⌘⌥K | Scroll document up/down |
+| ⌘⌥X | Toggle screen text capture |
+| ⌘⌥Z | Toggle screenshot capture |
+| ⌘⌥D | Open documents |
+| ⌘⌥J/L | Previous/next document |
+| ⌘⌥I/K | Scroll document up/down |
 | ⌘⌥A | Toggle attach document to AI context |
-| ⌘⌥S | Open settings |
+| ⌘⌥S | Settings |
 | ⌘⌥Q | Quit |
 
 ## Features
 
-**Invisible overlay** -- The window uses `NSWindow.sharingType = .none`, which makes it invisible to all screen capture mechanisms on macOS 26+. It stays visible on your physical display and floats above all other windows.
-
-**Speech transcription** -- Uses the macOS 26 `SpeechTranscriber` API for local, offline transcription of microphone input. No audio leaves your machine.
-
-**System audio capture** -- Captures audio from other applications (e.g. meeting participants) via Core Audio Process Tap and transcribes it locally.
-
-**Screen content extraction** -- Two modes: (1) Accessibility API reads text directly from the active window, (2) ScreenCaptureKit takes a screenshot with OCR via Apple Vision framework.
-
-**LLM integration** -- Supports macOS 26 Foundation Models (~3B parameter on-device model) for fully offline operation, plus OpenAI, Anthropic (Claude), Google Gemini, and Ollama via [AnyLanguageModel](https://github.com/mattt/AnyLanguageModel). Switch providers in the settings window.
-
-**Configurable UI** -- Transparency, width, font size, and hotkey bindings are all adjustable through a settings dialog with live preview.
+- **Invisible overlay** — `NSWindow.sharingType = .none` hides the window from all screen capture on macOS 26+.
+- **Speech transcription** — local offline transcription via `SpeechTranscriber` (macOS 26). Configurable language.
+- **System audio capture** — captures other apps' audio via Core Audio Process Tap for transcription.
+- **Screen content** — reads text via Accessibility API or takes screenshots with OCR (Apple Vision).
+- **LLM** — on-device Apple Foundation Models, or OpenAI / Anthropic / Gemini / Ollama via [AnyLanguageModel](https://github.com/mattt/AnyLanguageModel).
+- **Configurable UI** — transparency, width, font size, hotkeys, section sizes (draggable dividers), all adjustable with live preview.
+- **Documents** — load reference files from a directory, browse with hotkeys, optionally attach to AI context.
 
 ## Configuration
 
-All settings are configurable through the in-app settings window (⌘⌥S). Settings persist to `~/.liuwa/config.json`.
+All settings via the in-app settings window (⌘⌥S). Persisted to `~/.liuwa/config.json`.
 
-Supported LLM providers: Local (Apple Foundation Models), OpenAI, Anthropic (Claude), Google Gemini, Ollama. Select a provider and fill in the credentials in the settings window.
+Documents: place text files in `~/Documents/Liuwa/` (configurable). Use ⌘⌥D to open, ⌘⌥J/L to switch, ⌘⌥I/K to scroll.
 
-To load reference documents, place `.txt`, `.md`, `.json`, `.swift` or other text files in `~/Documents/Liuwa/` (configurable in settings). Press ⌘⌥D to open docs; use ⌘⌥J/L to switch documents and ⌘⌥I/K to scroll within the current document.
-
-## Building release binaries
-
-```bash
-./scripts/create-cert.sh        # one-time: create signing certificate
-swift build -c release          # binary at .build/release/Liuwa
-./scripts/bundle.sh             # .app bundle at Liuwa.app (signed with Liuwa Dev cert)
-```
-
-## How the invisibility works
-
-The overlay window uses `NSWindow.sharingType = .none`. On supported macOS versions this tells the window server to exclude the window from capture APIs (e.g. QuickTime, Zoom, Meet, OBS). The window remains visible on your physical display.
-
-## Project structure
+## Project Structure
 
 ```
 Sources/Liuwa/
-  main.swift                 -- App entry point
-  AppDelegate.swift          -- Launch, permission setup window, wires components
-  GhostWindow.swift          -- NSWindow subclass with sharingType=none
-  OverlayController.swift    -- Overlay panel layout and content management
-  OverlayConfig.swift        -- User settings, load/save from ~/.liuwa/config.json
-  SettingsWindow.swift       -- Settings dialog UI
-  HotkeyManager.swift        -- CGEventTap global hotkeys
-  TranscriptionManager.swift -- Microphone transcription via SpeechTranscriber
-  SystemAudioManager.swift   -- System audio capture via Core Audio Process Tap
-  ScreenCaptureManager.swift -- Accessibility API + ScreenCaptureKit OCR
-  LLMManager.swift           -- Foundation Models (local) + remote API
-  DocumentManager.swift      -- Reference document loading
-  Info.plist                 -- Privacy permission descriptions
+  main.swift                 Entry point, duplicate instance check
+  AppDelegate.swift          Permission setup, component wiring, hotkey dispatch
+  GhostWindow.swift          NSWindow with sharingType=none
+  OverlayController.swift    Overlay layout, sections, drag dividers
+  OverlayConfig.swift        Settings, load/save ~/.liuwa/config.json
+  SettingsWindow.swift       Settings dialog
+  HotkeyManager.swift        CGEventTap global hotkeys
+  TranscriptionManager.swift Mic transcription via SpeechTranscriber
+  SystemAudioManager.swift   System audio via Core Audio Process Tap
+  ScreenCaptureManager.swift Accessibility text + ScreenCaptureKit OCR
+  LLMManager.swift           Foundation Models + remote LLM APIs
+  DocumentManager.swift      Reference document loading
+  Info.plist                 Bundle metadata and permission descriptions
 scripts/
-  bundle.sh                  -- Build and package as .app (signs with Liuwa Dev cert)
-  create-cert.sh             -- Create self-signed code signing certificate
+  bundle.sh                  Build and package .app bundle
+  create-cert.sh             Create self-signed code signing certificate
 ```
 
-## What does Liuwa mean?
+## Name
 
-**Liuwa** (六娃) is the sixth of the seven Calabash Brothers (葫芦娃) in the classic Chinese animated series. The sixth brother’s power is **invisibility** — he can become invisible at will. The app is named after him because its main trick is an overlay that is invisible to screen capture and screen sharing, while still visible and usable on your own screen.
+**Liuwa** (六娃) is the sixth Calabash Brother (葫芦娃) whose power is **invisibility**. The app is named after him — an overlay invisible to screen capture, visible only to you.
 
 ## License
 

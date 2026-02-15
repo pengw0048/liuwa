@@ -4,8 +4,6 @@ enum PanelType: String, CaseIterable {
     case transcription, documents, aiResponse
 }
 
-// MARK: - Section
-
 @MainActor
 private final class SectionView {
     let container: NSView
@@ -61,7 +59,6 @@ private final class SectionView {
         container.addSubview(scrollView)
     }
 
-    /// Resize the section to a new frame without recreating subviews
     func resize(to f: NSRect) {
         container.frame = f
         let hdrH: CGFloat = hasSecondHint ? 26 : 14
@@ -92,13 +89,9 @@ private final class SectionView {
     }
 }
 
-// MARK: - Draggable Container (handles section divider drag)
-
 @MainActor
 private final class DraggableContainer: NSView {
-    /// Y positions of section boundaries (in this view's coordinate space)
     var handlePositions: [CGFloat] = []
-    /// Called with (handleIndex, deltaY in points)
     var onDrag: ((Int, CGFloat) -> Void)?
     var onDragEnd: (() -> Void)?
 
@@ -109,9 +102,7 @@ private final class DraggableContainer: NSView {
         let y = convert(event.locationInWindow, from: nil).y
         for (i, hy) in handlePositions.enumerated() {
             if abs(y - hy) < 5 {
-                activeHandle = i
-                lastY = y
-                return  // consume event — prevent window drag
+                activeHandle = i; lastY = y; return
             }
         }
         activeHandle = -1
@@ -141,16 +132,12 @@ private final class DraggableContainer: NSView {
     }
 }
 
-// MARK: - Draggable Top Bar (window drag from top line only)
-
 @MainActor
 private final class WindowDragBar: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
     }
 }
-
-// MARK: - Controller
 
 @MainActor
 final class OverlayController: @unchecked Sendable {
@@ -165,8 +152,6 @@ final class OverlayController: @unchecked Sendable {
 
     private var panelW: CGFloat, panelH: CGFloat
     private var micActive = false, sysActive = false
-
-    // Separate transcript buffers for WYSIWYG context
     private var micTranscript: String = ""
     private var sysTranscript: String = ""
 
@@ -213,17 +198,12 @@ final class OverlayController: @unchecked Sendable {
         window.orderFrontRegardless()
     }
 
-    // ── Divider drag logic ──
-    // macOS Y increases upward; drag up (positive delta) → divider moves up
     private func handleDividerDrag(handle: Int, delta: CGFloat) {
         let s = AppSettings.shared
         let h = contentContainer.frame.height
-        let usable = h - 4  // 2 gaps * 2px
-        let ratioDelta = delta / usable
+        let ratioDelta = delta / (h - 4)
 
         if handle == 0 {
-            // Between transcription (top) and documents (middle)
-            // Drag up → trans shrinks, docs grows
             var newTrans = s.transcriptionRatio - ratioDelta
             var newDoc = s.docRatio + ratioDelta
             newTrans = max(minRatio, newTrans)
@@ -232,8 +212,6 @@ final class OverlayController: @unchecked Sendable {
             s.transcriptionRatio = newTrans
             s.docRatio = newDoc
         } else if handle == 1 {
-            // Between documents (middle) and AI (bottom)
-            // Drag up → docs shrinks, AI grows
             var newDoc = s.docRatio - ratioDelta
             newDoc = max(minRatio, newDoc)
             if 1.0 - s.transcriptionRatio - newDoc < minRatio { return }
@@ -256,7 +234,6 @@ final class OverlayController: @unchecked Sendable {
         sections[.documents]?.resize(to: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH))
         sections[.aiResponse]?.resize(to: NSRect(x: 0, y: 0, width: w, height: aiH))
 
-        // Update drag handle positions
         contentContainer.handlePositions = [
             h - transH - gap / 2,    // between trans and docs
             aiH + gap / 2,           // between docs and AI
@@ -264,7 +241,6 @@ final class OverlayController: @unchecked Sendable {
         contentContainer.window?.invalidateCursorRects(for: contentContainer)
     }
 
-    // ── Top line: global toggles with descriptions ──
     private func buildTopLine() -> String {
         let s = AppSettings.shared
         let ghost = window.ghostModeOn ? "👻" : "👁"
@@ -277,7 +253,6 @@ final class OverlayController: @unchecked Sendable {
         return "⌘⌥\(s.keyFor("toggleOverlay")) expand  |  Liuwa"
     }
 
-    // ── Transcription hints ──
     private func buildTranscriptionHints() -> String {
         let s = AppSettings.shared
         let mic = micActive ? "🟢" : "⚫"
@@ -285,14 +260,12 @@ final class OverlayController: @unchecked Sendable {
         return "\(mic)🎤\(s.keyFor("toggleTranscription")) mic  \(sys)🔊\(s.keyFor("toggleSystemAudio")) sys  🗑\(s.keyFor("clearTranscription")) clear"
     }
 
-    // ── Doc hints ──
     private func buildDocHints() -> String {
         let s = AppSettings.shared
         let attach = s.attachDocToContext ? "🟢" : "⚫"
         return "📂\(s.keyFor("showDocs")) open  \(s.keyFor("docPrev"))◀\(s.keyFor("docNext"))▶ nav  \(s.keyFor("scrollDocUp"))↑\(s.keyFor("scrollDocDown"))↓ scroll  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
     }
 
-    // ── AI hints: line 1 = presets, line 2 = tools ──
     private func buildAIHintsLine1() -> String {
         let s = AppSettings.shared
         return s.presets.enumerated().map { "\($0.offset+1):\($0.element.label)" }.joined(separator: " ")
@@ -328,19 +301,15 @@ final class OverlayController: @unchecked Sendable {
         let docH = usable * s.docRatio
         let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
 
-        // Top: transcription
         let ts = SectionView(hints: buildTranscriptionHints(), frame: NSRect(x: 0, y: h - transH, width: w, height: transH), font: s.font)
         sections[.transcription] = ts; contentContainer.addSubview(ts.container)
 
-        // Middle: documents
         let ds = SectionView(hints: buildDocHints(), frame: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH), font: s.font)
         sections[.documents] = ds; contentContainer.addSubview(ds.container)
 
-        // Bottom: AI response
         let ai = SectionView(hints: buildAIHintsLine2(), hints2: buildAIHintsLine1(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
         sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
 
-        // Set drag handle positions
         contentContainer.handlePositions = [
             h - transH - gap / 2,
             aiH + gap / 2,
@@ -354,8 +323,6 @@ final class OverlayController: @unchecked Sendable {
             }
         }
     }
-
-    // MARK: Public
 
     func toggleVisibility() {
         let s = AppSettings.shared
@@ -401,12 +368,6 @@ final class OverlayController: @unchecked Sendable {
     func toggleGhostMode() { window.toggleGhostMode(); refreshStatus() }
     func toggleClickThrough() { window.toggleClickThrough(); refreshStatus() }
 
-    func showPanel(_ p: PanelType, withText t: String? = nil) {
-        if let t { panelContents[p] = t }; sections[p]?.setText(panelContents[p] ?? "")
-    }
-    func appendText(_ t: String, to p: PanelType) {
-        panelContents[p] = (panelContents[p] ?? "") + t; sections[p]?.setText(panelContents[p] ?? "")
-    }
     func setText(_ t: String, for p: PanelType) {
         panelContents[p] = t
         if p == .documents {
@@ -416,8 +377,6 @@ final class OverlayController: @unchecked Sendable {
         }
     }
     func getPanelContent(_ p: PanelType) -> String? { panelContents[p] }
-    func switchToPanel(_ p: PanelType) { showPanel(p) }
-    func cyclePanel() {}
 
     func setMicActive(_ a: Bool) { micActive = a; refreshStatus() }
     func setSysAudioActive(_ a: Bool) { sysActive = a; refreshStatus() }
@@ -447,9 +406,6 @@ final class OverlayController: @unchecked Sendable {
     func scrollAIUp() { sections[.aiResponse]?.pageUp() }
     func scrollAIDown() { sections[.aiResponse]?.pageDown() }
 
-    func refreshPresetLabels() { refreshStatus() }
-
-    /// Full rebuild: resize window, rebuild sections, refresh everything
     func applySettings() {
         let s = AppSettings.shared
         guard !isCollapsed else {
@@ -477,8 +433,5 @@ final class OverlayController: @unchecked Sendable {
         refreshStatus()
     }
 
-    /// Live preview during slider drag — does full visual update
-    func livePreview() {
-        applySettings()
-    }
+    func livePreview() { applySettings() }
 }

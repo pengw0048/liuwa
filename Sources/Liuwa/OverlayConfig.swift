@@ -1,14 +1,11 @@
 import AppKit
-import Foundation
 import Speech
 
 final class AppSettings: @unchecked Sendable {
     static let shared = AppSettings()
 
-    /// Cached transcription locales fetched from SpeechTranscriber.supportedLocales
     @MainActor static var cachedTranscriptionLocales: [(id: String, name: String)]?
 
-    /// Fetch supported locales from SpeechTranscriber (async, call once at launch)
     @MainActor static func fetchSupportedLocales() async {
         let supported = await SpeechTranscriber.supportedLocales
         var result: [(String, String)] = []
@@ -29,7 +26,7 @@ final class AppSettings: @unchecked Sendable {
     var fontSize: CGFloat = 10
     var fontName: String = ""
 
-    // Layout — three sections
+    // Layout
     var transcriptionRatio: CGFloat = 0.25
     var docRatio: CGFloat = 0.25
 
@@ -44,9 +41,9 @@ final class AppSettings: @unchecked Sendable {
     var transcriptionLocale: String = "en_US"
 
     // Screen capture
-    var sendScreenText: Bool = true      // AX text
-    var sendScreenshot: Bool = false     // screenshot
-    var screenshotMode: String = "auto"  // "auto", "ocr", "image"
+    var sendScreenText: Bool = true
+    var sendScreenshot: Bool = false
+    var screenshotMode: String = "auto" // "auto", "ocr", "image"
 
     // Documents
     var docsDirectory: String = NSString("~/Documents/Liuwa").expandingTildeInPath
@@ -60,41 +57,23 @@ final class AppSettings: @unchecked Sendable {
         ("Improve", "Improve and polish the following text. Fix grammar, clarity, and tone."),
     ]
 
-    // Hotkey bindings: action name -> key character (all ⌘⌥+key)
+    // Hotkeys
     var hotkeyBindings: [String: String] = defaultHotkeyBindings
 
     static let defaultHotkeyBindings: [String: String] = [
-        "toggleOverlay": "O",
-        "toggleGhost": "G",
-        "toggleClickThrough": "E",
-        "toggleTranscription": "T",
-        "toggleSystemAudio": "Y",
-        "clearTranscription": "W",
-        "showDocs": "D",
-        "toggleAttachDoc": "A",
-        "openSettings": "S",
-        "cycleScreenText": "X",
-        "cycleScreenshot": "Z",
-        "clearAI": "C",
-        "scrollAIUp": "↑",
-        "scrollAIDown": "↓",
-        "scrollDocUp": "I",
-        "scrollDocDown": "K",
-        "docPrev": "J",
-        "docNext": "L",
-        "preset1": "1",
-        "preset2": "2",
-        "preset3": "3",
-        "preset4": "4",
+        "toggleOverlay": "O", "toggleGhost": "G", "toggleClickThrough": "E",
+        "toggleTranscription": "T", "toggleSystemAudio": "Y", "clearTranscription": "W",
+        "showDocs": "D", "toggleAttachDoc": "A", "openSettings": "S",
+        "cycleScreenText": "X", "cycleScreenshot": "Z", "clearAI": "C",
+        "scrollAIUp": "↑", "scrollAIDown": "↓",
+        "scrollDocUp": "I", "scrollDocDown": "K", "docPrev": "J", "docNext": "L",
+        "preset1": "1", "preset2": "2", "preset3": "3", "preset4": "4",
         "quit": "Q",
     ]
 
-    /// Get the key character for a given action name
-    func keyFor(_ action: String) -> String {
-        hotkeyBindings[action] ?? "?"
-    }
+    func keyFor(_ action: String) -> String { hotkeyBindings[action] ?? "?" }
 
-    // Colors — pure white, bright blue
+    // Colors
     var textColor: NSColor { .white }
     var dimColor: NSColor { NSColor(white: 1.0, alpha: 0.6) }
     var accentColor: NSColor { NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0) }
@@ -132,11 +111,8 @@ final class AppSettings: @unchecked Sendable {
         if let v = json["model"] as? String { remoteModel = v }
         if let v = json["endpoint"] as? String { remoteEndpoint = v }
         if let v = json["llm_provider"] as? String { llmProvider = v }
-        // Migration: old config may have use_local_model
-        if json["llm_provider"] == nil, let v = json["use_local_model"] as? Bool { llmProvider = v ? "local" : "openai" }
         if let v = json["response_language"] as? String { responseLanguage = v }
         if let v = json["transcription_locale"] as? String {
-            // Normalize: Locale.identifier uses underscores (en_US), not hyphens
             transcriptionLocale = v.replacingOccurrences(of: "-", with: "_")
         }
         if let v = json["send_screen_text"] as? Bool { sendScreenText = v }

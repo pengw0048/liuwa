@@ -11,7 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
     var docs: DocumentManager!
     var settings: SettingsWindow!
 
-    // Permission setup window
     private var setupWindow: NSWindow?
     private var permTimer: Timer?
     private var axLabel: NSTextField?
@@ -21,8 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupEditMenu()
-
-        // Pre-fetch supported transcription locales in background
         Task { await AppSettings.fetchSupportedLocales() }
 
         if allPermissionsGranted() {
@@ -32,19 +29,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
         }
     }
 
-    // MARK: - Permission Check
+    // MARK: - Permissions
+
+    private func allPermissionsGranted() -> Bool {
+        AXIsProcessTrusted()
+        && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        && CGPreflightScreenCaptureAccess()
+    }
 
     @MainActor private func showPermissionWindow() {
-        // Show dock icon temporarily so user can see us
         NSApp.setActivationPolicy(.regular)
 
         let w: CGFloat = 460, h: CGFloat = 310
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let frame = NSRect(x: (screen.frame.width - w) / 2, y: (screen.frame.height - h) / 2, width: w, height: h)
         let win = NSWindow(contentRect: frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        win.title = "Liuwa — Setup"
-        win.level = .floating
-        win.isReleasedWhenClosed = false
+        win.title = "Liuwa — Setup"; win.level = .floating; win.isReleasedWhenClosed = false
 
         let root = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
 
@@ -62,82 +62,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
         root.addSubview(desc)
 
         var y = h - 155
+        axLabel  = makePermRow(parent: root, y: y, label: "Accessibility (required)", status: AXIsProcessTrusted()); y -= 28
+        micLabel = makePermRow(parent: root, y: y, label: "Microphone (for transcription)", status: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized); y -= 28
+        scrLabel = makePermRow(parent: root, y: y, label: "Screen Recording (for screen capture)", status: CGPreflightScreenCaptureAccess()); y -= 40
 
-        // Accessibility (critical)
-        let axLbl = makePermRow(parent: root, y: y, label: "Accessibility (required)", status: AXIsProcessTrusted())
-        axLabel = axLbl
-        y -= 28
+        let axBtn = NSButton(title: "Open Accessibility Settings…", target: self, action: #selector(openAccessibilitySettings))
+        axBtn.bezelStyle = .rounded; axBtn.frame = NSRect(x: 20, y: y, width: 220, height: 28); root.addSubview(axBtn)
 
-        // Microphone
-        let micStatus = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        let micLbl = makePermRow(parent: root, y: y, label: "Microphone (for transcription)", status: micStatus)
-        micLabel = micLbl
-        y -= 28
-
-        // Screen Recording
-        let scrStatus = CGPreflightScreenCaptureAccess()
-        let scrLbl = makePermRow(parent: root, y: y, label: "Screen Recording (for screen capture)", status: scrStatus)
-        scrLabel = scrLbl
-        y -= 40
-
-        // Open System Settings button
-        let openBtn = NSButton(title: "Open Accessibility Settings…", target: self, action: #selector(openAccessibilitySettings))
-        openBtn.bezelStyle = .rounded
-        openBtn.frame = NSRect(x: 20, y: y, width: 220, height: 28)
-        root.addSubview(openBtn)
-
-        let openMicBtn = NSButton(title: "Open Microphone Settings…", target: self, action: #selector(openMicSettings))
-        openMicBtn.bezelStyle = .rounded
-        openMicBtn.frame = NSRect(x: 250, y: y, width: 190, height: 28)
-        root.addSubview(openMicBtn)
+        let micBtn = NSButton(title: "Open Microphone Settings…", target: self, action: #selector(openMicSettings))
+        micBtn.bezelStyle = .rounded; micBtn.frame = NSRect(x: 250, y: y, width: 190, height: 28); root.addSubview(micBtn)
         y -= 36
 
-        let openScrBtn = NSButton(title: "Open Screen Recording Settings…", target: self, action: #selector(openScreenSettings))
-        openScrBtn.bezelStyle = .rounded
-        openScrBtn.frame = NSRect(x: 20, y: y, width: 250, height: 28)
-        root.addSubview(openScrBtn)
+        let scrBtn = NSButton(title: "Open Screen Recording Settings…", target: self, action: #selector(openScreenSettings))
+        scrBtn.bezelStyle = .rounded; scrBtn.frame = NSRect(x: 20, y: y, width: 250, height: 28); root.addSubview(scrBtn)
 
-        // Continue button (enabled when all permissions OK)
         let btn = NSButton(title: "Continue", target: self, action: #selector(permContinue))
-        btn.bezelStyle = .rounded
-        btn.font = .systemFont(ofSize: 14, weight: .semibold)
+        btn.bezelStyle = .rounded; btn.font = .systemFont(ofSize: 14, weight: .semibold)
         btn.frame = NSRect(x: w - 130, y: 16, width: 110, height: 32)
-        btn.isEnabled = allPermissionsGranted()
-        btn.keyEquivalent = "\r"
-        root.addSubview(btn)
-        continueBtn = btn
+        btn.isEnabled = allPermissionsGranted(); btn.keyEquivalent = "\r"
+        root.addSubview(btn); continueBtn = btn
 
-        win.contentView = root
-        win.delegate = self  // Handle window close → quit
-        win.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        win.contentView = root; win.delegate = self
+        win.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         setupWindow = win
 
-        // Poll for permission changes every 1s
         permTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.updatePermStatus() }
         }
     }
 
     @MainActor private func makePermRow(parent: NSView, y: CGFloat, label: String, status: Bool) -> NSTextField {
-        let icon = status ? "✅" : "❌"
-        let lbl = NSTextField(labelWithString: "\(icon)  \(label)")
+        let lbl = NSTextField(labelWithString: "\(status ? "✅" : "❌")  \(label)")
         lbl.font = .systemFont(ofSize: 13)
         lbl.frame = NSRect(x: 24, y: y, width: parent.frame.width - 48, height: 20)
-        parent.addSubview(lbl)
-        return lbl
-    }
-
-    private func allPermissionsGranted() -> Bool {
-        AXIsProcessTrusted()
-        && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        && CGPreflightScreenCaptureAccess()
+        parent.addSubview(lbl); return lbl
     }
 
     @MainActor private func updatePermStatus() {
-        let ax = AXIsProcessTrusted()
-        let mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        let scr = CGPreflightScreenCaptureAccess()
+        let ax = AXIsProcessTrusted(), mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized, scr = CGPreflightScreenCaptureAccess()
         axLabel?.stringValue  = "\(ax  ? "✅" : "❌")  Accessibility"
         micLabel?.stringValue = "\(mic ? "✅" : "❌")  Microphone"
         scrLabel?.stringValue = "\(scr ? "✅" : "❌")  Screen Recording"
@@ -145,26 +107,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
     }
 
     @objc private func openAccessibilitySettings() {
-        // Trigger the system prompt + open settings
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        AXIsProcessTrustedWithOptions(opts)
+        AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
     }
-
     @objc private func openMicSettings() {
-        AVCaptureDevice.requestAccess(for: .audio) { _ in
-            Task { @MainActor in self.updatePermStatus() }
-        }
+        AVCaptureDevice.requestAccess(for: .audio) { _ in Task { @MainActor in self.updatePermStatus() } }
     }
-
-    @objc private func openScreenSettings() {
-        CGRequestScreenCaptureAccess()
-    }
+    @objc private func openScreenSettings() { CGRequestScreenCaptureAccess() }
 
     func windowWillClose(_ notification: Notification) {
-        // If the permission setup window is closed (X button), quit the app
         if let win = notification.object as? NSWindow, win === setupWindow {
-            permTimer?.invalidate(); permTimer = nil
-            setupWindow = nil
+            permTimer?.invalidate(); permTimer = nil; setupWindow = nil
             NSApp.terminate(nil)
         }
     }
@@ -177,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
         launchApp()
     }
 
-    // MARK: - Main Launch
+    // MARK: - Launch
 
     @MainActor private func launchApp() {
         overlay = OverlayController()
@@ -192,25 +144,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
 
         hotkeys = HotkeyManager()
         hotkeys.onAction = { [weak self] action in self?.handle(action) }
-
         settings.onChanged = { [weak self] in
-            self?.overlay.applySettings()
-            self?.hotkeys.reloadBindings()
-            self?.llm.reloadConfig()
-            self?.docs.reload()
+            self?.overlay.applySettings(); self?.hotkeys.reloadBindings()
+            self?.llm.reloadConfig(); self?.docs.reload()
         }
         settings.onLivePreview = { [weak self] in self?.overlay.livePreview() }
 
         if hotkeys.install() { print("Hotkeys OK") }
-        else { print("CGEventTap failed - check Accessibility permission") }
-
-        print("Liuwa started.")
+        else { print("CGEventTap failed — check Accessibility permission") }
     }
 
-    /// Standard Edit menu so Cmd+C/V/X/A work in text fields
     @MainActor private func setupEditMenu() {
         let mainMenu = NSMenu()
-
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
         editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
@@ -219,46 +164,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
-
         let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
-        editMenuItem.submenu = editMenu
-        mainMenu.addItem(editMenuItem)
-
+        editMenuItem.submenu = editMenu; mainMenu.addItem(editMenuItem)
         NSApp.mainMenu = mainMenu
     }
 
     @MainActor private func handle(_ action: HotkeyAction) {
         let s = AppSettings.shared
         switch action {
-        case .toggleOverlay: overlay.toggleVisibility()
-        case .toggleGhost: overlay.toggleGhostMode()
-        case .toggleClickThrough: overlay.toggleClickThrough()
+        case .toggleOverlay:       overlay.toggleVisibility()
+        case .toggleGhost:         overlay.toggleGhostMode()
+        case .toggleClickThrough:  overlay.toggleClickThrough()
         case .toggleTranscription: transcription.toggle()
-        case .toggleSystemAudio: systemAudio.toggle()
-        case .clearTranscription:
-            transcription.clearTranscript(); systemAudio.clearTranscript()
-        case .showDocs: docs.showDocuments()
-        case .scrollDocUp: overlay.scrollDocUp()
-        case .scrollDocDown: overlay.scrollDocDown()
-        case .docPrev: docs.previousDocument()
-        case .docNext: docs.nextDocument()
-        case .toggleAttachDoc:
-            s.attachDocToContext.toggle(); s.save(); overlay.refreshStatus()
-        case .openSettings: settings.toggle()
-        case .cycleScreenText:
-            s.sendScreenText.toggle(); s.save(); overlay.refreshStatus()
-        case .cycleScreenshot:
-            s.sendScreenshot.toggle(); s.save(); overlay.refreshStatus()
-        case .clearAI: llm.clearConversation(); overlay.setText("", for: .aiResponse)
-        case .scrollAIUp: overlay.scrollAIUp()
-        case .scrollAIDown: overlay.scrollAIDown()
-        case .preset1: llm.sendPresetQuery(s.presets[safe: 0]?.prompt ?? "")
-        case .preset2: llm.sendPresetQuery(s.presets[safe: 1]?.prompt ?? "")
-        case .preset3: llm.sendPresetQuery(s.presets[safe: 2]?.prompt ?? "")
-        case .preset4: llm.sendPresetQuery(s.presets[safe: 3]?.prompt ?? "")
+        case .toggleSystemAudio:   systemAudio.toggle()
+        case .clearTranscription:  transcription.clearTranscript(); systemAudio.clearTranscript()
+        case .showDocs:            docs.showDocuments()
+        case .scrollDocUp:         overlay.scrollDocUp()
+        case .scrollDocDown:       overlay.scrollDocDown()
+        case .docPrev:             docs.previousDocument()
+        case .docNext:             docs.nextDocument()
+        case .toggleAttachDoc:     s.attachDocToContext.toggle(); s.save(); overlay.refreshStatus()
+        case .openSettings:        settings.toggle()
+        case .cycleScreenText:     s.sendScreenText.toggle(); s.save(); overlay.refreshStatus()
+        case .cycleScreenshot:     s.sendScreenshot.toggle(); s.save(); overlay.refreshStatus()
+        case .clearAI:             llm.clearConversation(); overlay.setText("", for: .aiResponse)
+        case .scrollAIUp:          overlay.scrollAIUp()
+        case .scrollAIDown:        overlay.scrollAIDown()
+        case .preset1:             llm.sendPresetQuery(s.presets[safe: 0]?.prompt ?? "")
+        case .preset2:             llm.sendPresetQuery(s.presets[safe: 1]?.prompt ?? "")
+        case .preset3:             llm.sendPresetQuery(s.presets[safe: 2]?.prompt ?? "")
+        case .preset4:             llm.sendPresetQuery(s.presets[safe: 3]?.prompt ?? "")
         case .quit:
             transcription.stop(); systemAudio.stop()
-            print("Liuwa exiting."); NSApplication.shared.terminate(nil)
+            NSApplication.shared.terminate(nil)
         }
     }
 }
