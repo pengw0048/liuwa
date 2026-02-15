@@ -154,12 +154,14 @@ final class OverlayController: @unchecked Sendable {
     private var micActive = false, sysActive = false
     private var micTranscript: String = ""
     private var sysTranscript: String = ""
+    private(set) var docsVisible: Bool
 
     private let collapsedH: CGFloat = 16
     private let minRatio: CGFloat = 0.05
 
     init() {
         let s = AppSettings.shared
+        docsVisible = s.docsVisible
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let sw = screen.frame.width, sh = screen.frame.height
         panelW = s.width
@@ -203,21 +205,26 @@ final class OverlayController: @unchecked Sendable {
         let h = contentContainer.frame.height
         let ratioDelta = delta / (h - 4)
 
-        if handle == 0 {
+        if docsVisible {
+            if handle == 0 {
+                var newTrans = s.transcriptionRatio - ratioDelta
+                var newDoc = s.docRatio + ratioDelta
+                newTrans = max(minRatio, newTrans); newDoc = max(minRatio, newDoc)
+                if 1.0 - newTrans - newDoc < minRatio { return }
+                s.transcriptionRatio = newTrans; s.docRatio = newDoc
+            } else if handle == 1 {
+                var newDoc = s.docRatio - ratioDelta
+                newDoc = max(minRatio, newDoc)
+                if 1.0 - s.transcriptionRatio - newDoc < minRatio { return }
+                s.docRatio = newDoc
+            }
+        } else {
+            // 2-section mode: adjust transcriptionRatio, AI gets remainder
             var newTrans = s.transcriptionRatio - ratioDelta
-            var newDoc = s.docRatio + ratioDelta
             newTrans = max(minRatio, newTrans)
-            newDoc = max(minRatio, newDoc)
-            if 1.0 - newTrans - newDoc < minRatio { return }
+            if 1.0 - newTrans - s.docRatio < minRatio { return }
             s.transcriptionRatio = newTrans
-            s.docRatio = newDoc
-        } else if handle == 1 {
-            var newDoc = s.docRatio - ratioDelta
-            newDoc = max(minRatio, newDoc)
-            if 1.0 - s.transcriptionRatio - newDoc < minRatio { return }
-            s.docRatio = newDoc
         }
-
         relayoutSections()
     }
 
@@ -225,19 +232,33 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let w = contentContainer.frame.width, h = contentContainer.frame.height
         let gap: CGFloat = 2
-        let usable = h - gap * 2
-        let transH = usable * s.transcriptionRatio
-        let docH = usable * s.docRatio
-        let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
 
-        sections[.transcription]?.resize(to: NSRect(x: 0, y: h - transH, width: w, height: transH))
-        sections[.documents]?.resize(to: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH))
-        sections[.aiResponse]?.resize(to: NSRect(x: 0, y: 0, width: w, height: aiH))
-
-        contentContainer.handlePositions = [
-            h - transH - gap / 2,    // between trans and docs
-            aiH + gap / 2,           // between docs and AI
-        ]
+        if docsVisible {
+            let usable = h - gap * 2
+            let transH = usable * s.transcriptionRatio
+            let docH = usable * s.docRatio
+            let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
+            sections[.transcription]?.resize(to: NSRect(x: 0, y: h - transH, width: w, height: transH))
+            sections[.documents]?.resize(to: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH))
+            sections[.aiResponse]?.resize(to: NSRect(x: 0, y: 0, width: w, height: aiH))
+            contentContainer.handlePositions = [h - transH - gap / 2, aiH + gap / 2]
+        } else {
+            let barH: CGFloat = 14
+            let usable = h - gap - barH
+            let twoTotal = s.transcriptionRatio + (1.0 - s.transcriptionRatio - s.docRatio)
+            let transH = usable * (s.transcriptionRatio / twoTotal)
+            let aiH = usable - transH
+            sections[.transcription]?.resize(to: NSRect(x: 0, y: h - transH, width: w, height: transH))
+            docHintBar?.frame = NSRect(x: 0, y: aiH, width: w, height: barH)
+            if let sep = docHintBar?.subviews.first {
+                sep.frame = NSRect(x: 0, y: barH - 1, width: w, height: 1)
+            }
+            if let lbl = docHintBar?.subviews.compactMap({ $0 as? NSTextField }).first {
+                lbl.frame = NSRect(x: 4, y: 0, width: w - 8, height: 12)
+            }
+            sections[.aiResponse]?.resize(to: NSRect(x: 0, y: 0, width: w, height: aiH))
+            contentContainer.handlePositions = [aiH + barH / 2]
+        }
         contentContainer.window?.invalidateCursorRects(for: contentContainer)
     }
 
@@ -263,7 +284,13 @@ final class OverlayController: @unchecked Sendable {
     private func buildDocHints() -> String {
         let s = AppSettings.shared
         let attach = s.attachDocToContext ? "🟢" : "⚫"
-        return "📂\(s.keyFor("showDocs")) open  \(s.keyFor("docPrev"))◀\(s.keyFor("docNext"))▶ nav  \(s.keyFor("scrollDocUp"))↑\(s.keyFor("scrollDocDown"))↓ scroll  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
+        return "📂\(s.keyFor("showDocs")) close  \(s.keyFor("docPrev"))◀\(s.keyFor("docNext"))▶ nav  \(s.keyFor("scrollDocUp"))↑\(s.keyFor("scrollDocDown"))↓ scroll  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
+    }
+
+    private func buildDocClosedHint() -> String {
+        let s = AppSettings.shared
+        let attach = s.attachDocToContext ? "🟢" : "⚫"
+        return "📂\(s.keyFor("showDocs")) docs  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
     }
 
     private func buildAIHintsLine1() -> String {
@@ -278,6 +305,8 @@ final class OverlayController: @unchecked Sendable {
         return "\(txt)📝\(s.keyFor("cycleScreenText")) text  \(img)📷\(s.keyFor("cycleScreenshot")) img  🧹\(s.keyFor("clearAI")) clear  ↑↓ scroll"
     }
 
+    private var docHintBar: NSView?
+
     func refreshStatus() {
         if isCollapsed {
             topLine.stringValue = buildCollapsedLine()
@@ -285,43 +314,83 @@ final class OverlayController: @unchecked Sendable {
             topLine.stringValue = buildTopLine()
         }
         sections[.transcription]?.hintLabel.stringValue = buildTranscriptionHints()
-        sections[.documents]?.hintLabel.stringValue = buildDocHints()
+        if docsVisible {
+            sections[.documents]?.hintLabel.stringValue = buildDocHints()
+        } else if let lbl = docHintBar?.subviews.compactMap({ $0 as? NSTextField }).first {
+            lbl.stringValue = buildDocClosedHint()
+        }
         sections[.aiResponse]?.hintLabel.stringValue = buildAIHintsLine2()
         sections[.aiResponse]?.hint2Label?.stringValue = buildAIHintsLine1()
     }
 
     private func buildSections() {
         contentContainer.subviews.forEach { $0.removeFromSuperview() }
-        sections.removeAll()
+        sections.removeAll(); docHintBar = nil
         let s = AppSettings.shared
         let w = contentContainer.frame.width, h = contentContainer.frame.height
         let gap: CGFloat = 2
-        let usable = h - gap * 2
-        let transH = usable * s.transcriptionRatio
-        let docH = usable * s.docRatio
-        let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
 
-        let ts = SectionView(hints: buildTranscriptionHints(), frame: NSRect(x: 0, y: h - transH, width: w, height: transH), font: s.font)
-        sections[.transcription] = ts; contentContainer.addSubview(ts.container)
+        if docsVisible {
+            let usable = h - gap * 2
+            let transH = usable * s.transcriptionRatio
+            let docH = usable * s.docRatio
+            let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
 
-        let ds = SectionView(hints: buildDocHints(), frame: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH), font: s.font)
-        sections[.documents] = ds; contentContainer.addSubview(ds.container)
+            let ts = SectionView(hints: buildTranscriptionHints(), frame: NSRect(x: 0, y: h - transH, width: w, height: transH), font: s.font)
+            sections[.transcription] = ts; contentContainer.addSubview(ts.container)
 
-        let ai = SectionView(hints: buildAIHintsLine2(), hints2: buildAIHintsLine1(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
-        sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
+            let ds = SectionView(hints: buildDocHints(), frame: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH), font: s.font)
+            sections[.documents] = ds; contentContainer.addSubview(ds.container)
 
-        contentContainer.handlePositions = [
-            h - transH - gap / 2,
-            aiH + gap / 2,
-        ]
+            let ai = SectionView(hints: buildAIHintsLine2(), hints2: buildAIHintsLine1(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
+            sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
+
+            contentContainer.handlePositions = [h - transH - gap / 2, aiH + gap / 2]
+        } else {
+            // 2-section mode: transcription, slim doc-hint bar, AI
+            let barH: CGFloat = 14
+            let usable = h - gap - barH
+            let twoTotal = s.transcriptionRatio + (1.0 - s.transcriptionRatio - s.docRatio)
+            let transH = usable * (s.transcriptionRatio / twoTotal)
+            let aiH = usable - transH
+
+            let ts = SectionView(hints: buildTranscriptionHints(), frame: NSRect(x: 0, y: h - transH, width: w, height: transH), font: s.font)
+            sections[.transcription] = ts; contentContainer.addSubview(ts.container)
+
+            // Slim hint bar for docs
+            let barY = aiH
+            let bar = NSView(frame: NSRect(x: 0, y: barY, width: w, height: barH))
+            bar.wantsLayer = true
+            let sep = NSView(frame: NSRect(x: 0, y: barH - 1, width: w, height: 1))
+            sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor(white: 1, alpha: 0.35).cgColor
+            bar.addSubview(sep)
+            let lbl = NSTextField(labelWithString: buildDocClosedHint())
+            lbl.font = .monospacedSystemFont(ofSize: 9, weight: .medium)
+            lbl.textColor = NSColor(white: 1, alpha: 0.55)
+            lbl.frame = NSRect(x: 4, y: 0, width: w - 8, height: 12)
+            lbl.isEditable = false; lbl.isBezeled = false; lbl.drawsBackground = false
+            bar.addSubview(lbl)
+            contentContainer.addSubview(bar)
+            docHintBar = bar
+
+            let ai = SectionView(hints: buildAIHintsLine2(), hints2: buildAIHintsLine1(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
+            sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
+
+            contentContainer.handlePositions = [aiH + gap / 2]
+        }
 
         for (p, sec) in sections {
-            if p == .documents {
-                sec.setTextScrollTop(panelContents[p] ?? "")
-            } else {
-                sec.setText(panelContents[p] ?? "")
-            }
+            if p == .documents { sec.setTextScrollTop(panelContents[p] ?? "") }
+            else { sec.setText(panelContents[p] ?? "") }
         }
+    }
+
+    func toggleDocs() {
+        docsVisible.toggle()
+        AppSettings.shared.docsVisible = docsVisible
+        AppSettings.shared.save()
+        buildSections()
+        refreshStatus()
     }
 
     func toggleVisibility() {

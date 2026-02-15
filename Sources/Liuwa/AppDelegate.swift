@@ -152,6 +152,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
 
         if hotkeys.install() { print("Hotkeys OK") }
         else { print("CGEventTap failed — check Accessibility permission") }
+
+        if overlay.docsVisible { docs.showDocuments() }
     }
 
     @MainActor private func setupEditMenu() {
@@ -178,11 +180,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @unc
         case .toggleTranscription: transcription.toggle()
         case .toggleSystemAudio:   systemAudio.toggle()
         case .clearTranscription:  transcription.clearTranscript(); systemAudio.clearTranscript()
-        case .showDocs:            docs.showDocuments()
-        case .scrollDocUp:         overlay.scrollDocUp()
-        case .scrollDocDown:       overlay.scrollDocDown()
-        case .docPrev:             docs.previousDocument()
-        case .docNext:             docs.nextDocument()
+        case .showDocs:
+            overlay.toggleDocs()
+            if overlay.docsVisible { docs.showDocuments() }
+        case .scrollDocUp:         if overlay.docsVisible { overlay.scrollDocUp() }
+        case .scrollDocDown:       if overlay.docsVisible { overlay.scrollDocDown() }
+        case .docPrev:
+            if !overlay.docsVisible { overlay.toggleDocs() }
+            docs.previousDocument()
+        case .docNext:
+            if !overlay.docsVisible { overlay.toggleDocs() }
+            docs.nextDocument()
         case .toggleAttachDoc:     s.attachDocToContext.toggle(); s.save(); overlay.refreshStatus()
         case .openSettings:        settings.toggle()
         case .cycleScreenText:     s.sendScreenText.toggle(); s.save(); overlay.refreshStatus()

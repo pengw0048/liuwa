@@ -48,6 +48,7 @@ final class AppSettings: @unchecked Sendable {
     // Documents
     var docsDirectory: String = NSString("~/Documents/Liuwa").expandingTildeInPath
     var attachDocToContext: Bool = true
+    var docsVisible: Bool = false
 
     // Presets
     var presets: [(label: String, prompt: String)] = [
@@ -120,6 +121,7 @@ final class AppSettings: @unchecked Sendable {
         if let v = json["screenshot_mode"] as? String { screenshotMode = v }
         if let v = json["docs_directory"] as? String { docsDirectory = v }
         if let v = json["attach_doc_to_context"] as? Bool { attachDocToContext = v }
+        if let v = json["docs_visible"] as? Bool { docsVisible = v }
         if let arr = json["presets"] as? [[String: String]] {
             var loaded: [(String, String)] = []
             for item in arr { if let l = item["label"], let p = item["prompt"] { loaded.append((l, p)) } }
@@ -145,7 +147,7 @@ final class AppSettings: @unchecked Sendable {
             "transcription_locale": transcriptionLocale,
             "send_screen_text": sendScreenText, "send_screenshot": sendScreenshot,
             "screenshot_mode": screenshotMode,
-            "docs_directory": docsDirectory, "attach_doc_to_context": attachDocToContext,
+            "docs_directory": docsDirectory, "attach_doc_to_context": attachDocToContext, "docs_visible": docsVisible,
             "presets": presetArr, "hotkey_bindings": hotkeyBindings,
         ]
         if let data = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
