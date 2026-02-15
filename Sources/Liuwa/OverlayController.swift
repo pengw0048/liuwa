@@ -13,11 +13,13 @@ private final class SectionView {
     let hint2Label: NSTextField?  // optional second line
     let scrollView: NSScrollView
     let textView: NSTextView
+    private let hasSecondHint: Bool
 
     init(hints: String, hints2: String? = nil, frame: NSRect, font: NSFont) {
+        hasSecondHint = hints2 != nil
         container = NSView(frame: frame)
 
-        let hdrH: CGFloat = hints2 != nil ? 26 : 14
+        let hdrH: CGFloat = hasSecondHint ? 26 : 14
         let sep = NSView(frame: NSRect(x: 0, y: frame.height - 1, width: frame.width, height: 1))
         sep.wantsLayer = true; sep.layer?.backgroundColor = NSColor(white: 1, alpha: 0.12).cgColor
         container.addSubview(sep)
@@ -59,6 +61,19 @@ private final class SectionView {
         container.addSubview(scrollView)
     }
 
+    /// Resize the section to a new frame without recreating subviews
+    func resize(to f: NSRect) {
+        container.frame = f
+        let hdrH: CGFloat = hasSecondHint ? 26 : 14
+        // Separator
+        if let sep = container.subviews.first {
+            sep.frame = NSRect(x: 0, y: f.height - 1, width: f.width, height: 1)
+        }
+        hintLabel.frame = NSRect(x: 4, y: f.height - 13, width: f.width - 8, height: 12)
+        hint2Label?.frame = NSRect(x: 4, y: f.height - 25, width: f.width - 8, height: 12)
+        scrollView.frame = NSRect(x: 2, y: 0, width: f.width - 4, height: f.height - hdrH - 2)
+    }
+
     func setText(_ t: String) { textView.string = t; textView.scrollToEndOfDocument(nil) }
     func setTextScrollTop(_ t: String) {
         textView.string = t
@@ -77,6 +92,55 @@ private final class SectionView {
     }
 }
 
+// MARK: - Draggable Container (handles section divider drag)
+
+@MainActor
+private final class DraggableContainer: NSView {
+    /// Y positions of section boundaries (in this view's coordinate space)
+    var handlePositions: [CGFloat] = []
+    /// Called with (handleIndex, deltaY in points)
+    var onDrag: ((Int, CGFloat) -> Void)?
+    var onDragEnd: (() -> Void)?
+
+    private var activeHandle: Int = -1
+    private var lastY: CGFloat = 0
+
+    override func mouseDown(with event: NSEvent) {
+        let y = convert(event.locationInWindow, from: nil).y
+        for (i, hy) in handlePositions.enumerated() {
+            if abs(y - hy) < 5 {
+                activeHandle = i
+                lastY = y
+                return  // consume event — prevent window drag
+            }
+        }
+        activeHandle = -1
+        super.mouseDown(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard activeHandle >= 0 else { super.mouseDragged(with: event); return }
+        let y = convert(event.locationInWindow, from: nil).y
+        let delta = y - lastY
+        lastY = y
+        onDrag?(activeHandle, delta)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if activeHandle >= 0 {
+            activeHandle = -1
+            onDragEnd?()
+        }
+        super.mouseUp(with: event)
+    }
+
+    override func resetCursorRects() {
+        for hy in handlePositions {
+            addCursorRect(NSRect(x: 0, y: hy - 4, width: bounds.width, height: 8), cursor: .resizeUpDown)
+        }
+    }
+}
+
 // MARK: - Controller
 
 @MainActor
@@ -85,7 +149,7 @@ final class OverlayController: @unchecked Sendable {
     private var sections: [PanelType: SectionView] = [:]
     private var panelContents: [PanelType: String] = [.transcription: "", .aiResponse: "", .documents: ""]
     private var isCollapsed = false
-    private var contentContainer: NSView!
+    private var contentContainer: DraggableContainer!
     private var topLine: NSTextField!
     private var root: NSView!
 
@@ -97,6 +161,7 @@ final class OverlayController: @unchecked Sendable {
     private var sysTranscript: String = ""
 
     private let collapsedH: CGFloat = 16
+    private let minRatio: CGFloat = 0.05
 
     init() {
         let s = AppSettings.shared
@@ -125,7 +190,9 @@ final class OverlayController: @unchecked Sendable {
         root.addSubview(topLine)
 
         let cH = panelH - tlH - 4
-        contentContainer = NSView(frame: NSRect(x: 3, y: 2, width: panelW - 6, height: cH))
+        contentContainer = DraggableContainer(frame: NSRect(x: 3, y: 2, width: panelW - 6, height: cH))
+        contentContainer.onDrag = { [weak self] handle, delta in self?.handleDividerDrag(handle: handle, delta: delta) }
+        contentContainer.onDragEnd = { AppSettings.shared.save() }
         root.addSubview(contentContainer)
 
         buildSections()
@@ -134,12 +201,73 @@ final class OverlayController: @unchecked Sendable {
         window.orderFrontRegardless()
     }
 
+    // ── Divider drag logic ──
+    private func handleDividerDrag(handle: Int, delta: CGFloat) {
+        let s = AppSettings.shared
+        let h = contentContainer.frame.height
+        let usable = h - 4  // 2 gaps * 2px
+        let ratioDelta = delta / usable
+
+        if handle == 0 {
+            // Between transcription (top) and documents (middle)
+            // Drag up → trans grows, docs shrinks
+            var newTrans = s.transcriptionRatio + ratioDelta
+            var newDoc = s.docRatio - ratioDelta
+            newTrans = max(minRatio, min(newTrans, 1.0 - s.docRatio - minRatio))
+            newDoc = max(minRatio, min(newDoc, 1.0 - s.transcriptionRatio - minRatio))
+            // Re-clamp together
+            let maxTrans = 1.0 - minRatio - minRatio
+            newTrans = min(newTrans, maxTrans)
+            newDoc = max(minRatio, 1.0 - newTrans - max(minRatio, 1.0 - newTrans - newDoc))
+            newDoc = max(minRatio, s.docRatio - ratioDelta)
+            newTrans = max(minRatio, s.transcriptionRatio + ratioDelta)
+            // Ensure AI section has minimum
+            if 1.0 - newTrans - newDoc < minRatio {
+                return
+            }
+            s.transcriptionRatio = newTrans
+            s.docRatio = newDoc
+        } else if handle == 1 {
+            // Between documents (middle) and AI (bottom)
+            // Drag up → docs grows, AI shrinks
+            var newDoc = s.docRatio + ratioDelta
+            newDoc = max(minRatio, newDoc)
+            if 1.0 - s.transcriptionRatio - newDoc < minRatio {
+                return
+            }
+            s.docRatio = newDoc
+        }
+
+        relayoutSections()
+    }
+
+    private func relayoutSections() {
+        let s = AppSettings.shared
+        let w = contentContainer.frame.width, h = contentContainer.frame.height
+        let gap: CGFloat = 2
+        let usable = h - gap * 2
+        let transH = usable * s.transcriptionRatio
+        let docH = usable * s.docRatio
+        let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
+
+        sections[.transcription]?.resize(to: NSRect(x: 0, y: h - transH, width: w, height: transH))
+        sections[.documents]?.resize(to: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH))
+        sections[.aiResponse]?.resize(to: NSRect(x: 0, y: 0, width: w, height: aiH))
+
+        // Update drag handle positions
+        contentContainer.handlePositions = [
+            h - transH - gap / 2,    // between trans and docs
+            aiH + gap / 2,           // between docs and AI
+        ]
+        contentContainer.window?.invalidateCursorRects(for: contentContainer)
+    }
+
     // ── Top line: global toggles with descriptions ──
     private func buildTopLine() -> String {
         let s = AppSettings.shared
         let ghost = window.ghostModeOn ? "👻" : "👁"
         let click = window.clickThroughOn ? "🔒" : "🖱"
-        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  ⚙\(s.keyFor("openSettings")) cfg  ❌\(s.keyFor("quit")) quit"
+        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  🔧\(s.keyFor("openSettings")) cfg  ❌\(s.keyFor("quit")) quit"
     }
 
     private func buildCollapsedLine() -> String {
@@ -193,8 +321,7 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let w = contentContainer.frame.width, h = contentContainer.frame.height
         let gap: CGFloat = 2
-        let totalGaps = gap * 2  // 2 gaps between 3 sections
-        let usable = h - totalGaps
+        let usable = h - gap * 2
         let transH = usable * s.transcriptionRatio
         let docH = usable * s.docRatio
         let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
@@ -210,6 +337,12 @@ final class OverlayController: @unchecked Sendable {
         // Bottom: AI response
         let ai = SectionView(hints: buildAIHintsLine1(), hints2: buildAIHintsLine2(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
         sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
+
+        // Set drag handle positions
+        contentContainer.handlePositions = [
+            h - transH - gap / 2,
+            aiH + gap / 2,
+        ]
 
         for (p, sec) in sections {
             if p == .documents {

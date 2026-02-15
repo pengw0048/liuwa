@@ -15,7 +15,7 @@ final class AppSettings: @unchecked Sendable {
 
     // Layout — three sections
     var transcriptionRatio: CGFloat = 0.25
-    var docRatio: CGFloat = 0.20
+    var docRatio: CGFloat = 0.25
 
     // LLM
     static let llmProviders = ["local", "openai", "anthropic", "gemini", "ollama"]
