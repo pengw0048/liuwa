@@ -18,6 +18,7 @@ enum HotkeyAction: String, CaseIterable {
     case scrollAIUp
     case scrollAIDown
     case preset1, preset2, preset3, preset4
+    case scrollDocUp, scrollDocDown
     case docPrev, docNext
     case quit
 }

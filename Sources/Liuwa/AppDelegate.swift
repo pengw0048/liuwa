@@ -71,6 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         case .clearTranscription:
             transcription.clearTranscript(); systemAudio.clearTranscript()
         case .showDocs: docs.showDocuments()
+        case .scrollDocUp: overlay.scrollDocUp()
+        case .scrollDocDown: overlay.scrollDocDown()
         case .docPrev: docs.previousDocument()
         case .docNext: docs.nextDocument()
         case .toggleAttachDoc:

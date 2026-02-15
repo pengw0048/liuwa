@@ -61,6 +61,8 @@ final class AppSettings: @unchecked Sendable {
         "clearAI": "C",
         "scrollAIUp": "↑",
         "scrollAIDown": "↓",
+        "scrollDocUp": "I",
+        "scrollDocDown": "K",
         "docPrev": "←",
         "docNext": "→",
         "preset1": "1",

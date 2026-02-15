@@ -184,6 +184,8 @@ final class SettingsWindow {
             ("preset4", "4️⃣ Preset 4"),
             ("clearAI", "🧹 Clear AI"),
             ("showDocs", "📂 Documents"),
+            ("scrollDocUp", "📄⬆ Doc Scroll Up"),
+            ("scrollDocDown", "📄⬇ Doc Scroll Down"),
             ("toggleAttachDoc", "📎 Attach Doc"),
             ("quit", "❌ Quit"),
         ]
