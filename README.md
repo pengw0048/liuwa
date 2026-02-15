@@ -33,6 +33,12 @@ swift build --scratch-path /some/whitelisted/path
 /some/whitelisted/path/debug/Liuwa
 ```
 
+**Note:** If macOS says the app "is damaged and can't be opened" after downloading, remove the quarantine attribute:
+
+```bash
+xattr -cr Liuwa.app
+```
+
 ## Permissions
 
 On first launch, Liuwa shows a setup window and requires all of the following before you can continue (System Settings > Privacy & Security):

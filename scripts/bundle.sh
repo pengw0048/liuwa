@@ -24,6 +24,12 @@ cp Sources/Liuwa/Info.plist "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$APP/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "$APP/Contents/Info.plist" 2>/dev/null || true
 
-echo "Created $APP"
+# Ad-hoc code sign so Gatekeeper doesn't flag it as "damaged"
+codesign --force --deep -s - "$APP"
+
+echo "Created $APP (ad-hoc signed)"
 echo "  Run: open $APP"
 echo "  Or:  $APP/Contents/MacOS/Liuwa"
+echo ""
+echo "Note: if downloaded from the internet, users may need to run:"
+echo "  xattr -cr Liuwa.app"
