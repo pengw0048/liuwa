@@ -1,7 +1,0 @@
-{
-    "use_local_model": true,
-    "api_key": "",
-    "model": "gpt-4o-mini",
-    "endpoint": "https://api.openai.com/v1/chat/completions",
-    "response_language": "English"
-}

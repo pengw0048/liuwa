@@ -1,24 +1,24 @@
 import Foundation
 import AppKit
-import FoundationModels
+import AnyLanguageModel
 
 @MainActor
 final class LLMManager {
     private weak var overlay: OverlayController?
     weak var screenCapture: ScreenCaptureManager?
-    private var localSession: LanguageModelSession?
+    private var session: LanguageModelSession?
     private var currentTask: Task<Void, Never>?
     private var conversationLog: String = ""
     private var queryCount: Int = 0
 
     init(overlay: OverlayController, transcription: TranscriptionManager) {
-        self.overlay = overlay; setupLocalSession()
+        self.overlay = overlay; setupSession()
     }
 
-    func reloadConfig() { AppSettings.shared.load(); setupLocalSession() }
+    func reloadConfig() { AppSettings.shared.load(); setupSession() }
 
     func clearConversation() {
-        currentTask?.cancel(); conversationLog = ""; queryCount = 0; setupLocalSession()
+        currentTask?.cancel(); conversationLog = ""; queryCount = 0; setupSession()
     }
 
     func sendPresetQuery(_ instruction: String) {
@@ -30,7 +30,6 @@ final class LLMManager {
         overlay?.setText(conversationLog + "…", for: .aiResponse)
 
         currentTask = Task {
-            // Auto-capture if either screen mode is on
             if s.sendScreenText || s.sendScreenshot { await screenCapture?.capture() }
 
             let ctx = gatherContext()
@@ -64,71 +63,70 @@ final class LLMManager {
         return c
     }
 
-    private func queryLLM(prompt: String) async throws {
+    // MARK: - Model & Session Setup
+
+    private func buildModel() -> (any LanguageModel)? {
         let s = AppSettings.shared
-        if s.useLocalModel, case .available = SystemLanguageModel.default.availability {
-            try await streamLocal(prompt: prompt); return
+        switch s.llmProvider {
+        case "local":
+            if case .available = SystemLanguageModel.default.availability {
+                return SystemLanguageModel.default
+            }
+            return nil
+        case "openai":
+            guard !s.remoteAPIKey.isEmpty else { return nil }
+            if !s.remoteEndpoint.isEmpty {
+                return OpenAILanguageModel(
+                    baseURL: URL(string: s.remoteEndpoint)!,
+                    apiKey: s.remoteAPIKey,
+                    model: s.remoteModel.isEmpty ? "gpt-4o-mini" : s.remoteModel
+                )
+            }
+            return OpenAILanguageModel(
+                apiKey: s.remoteAPIKey,
+                model: s.remoteModel.isEmpty ? "gpt-4o-mini" : s.remoteModel
+            )
+        case "anthropic":
+            guard !s.remoteAPIKey.isEmpty else { return nil }
+            return AnthropicLanguageModel(
+                apiKey: s.remoteAPIKey,
+                model: s.remoteModel.isEmpty ? "claude-sonnet-4-5-20250929" : s.remoteModel
+            )
+        case "ollama":
+            let base = s.remoteEndpoint.isEmpty ? "http://localhost:11434" : s.remoteEndpoint
+            return OllamaLanguageModel(
+                baseURL: URL(string: base)!,
+                model: s.remoteModel.isEmpty ? "llama3.2" : s.remoteModel
+            )
+        default:
+            return nil
         }
-        if !s.remoteAPIKey.isEmpty { try await streamRemote(prompt: prompt); return }
-        conversationLog += "No LLM. ⌘⌥S to configure.\n\n"; overlay?.setText(conversationLog, for: .aiResponse)
     }
 
-    private func setupLocalSession() {
-        guard case .available = SystemLanguageModel.default.availability else { return }
+    private func setupSession() {
+        guard let model = buildModel() else { session = nil; return }
         let s = AppSettings.shared
-        localSession = LanguageModelSession(instructions: "You are a helpful meeting/interview assistant. Analyze context and give concise actionable advice. For coding: provide approach and key code. Respond in \(s.responseLanguage).")
+        session = LanguageModelSession(
+            model: model,
+            instructions: "You are a helpful meeting/interview assistant. Analyze context and give concise actionable advice. For coding: provide approach and key code. Respond in \(s.responseLanguage)."
+        )
     }
 
-    private func streamLocal(prompt: String) async throws {
-        if localSession == nil { setupLocalSession() }
-        guard let session = localSession else { throw LLMError.localUnavailable }
+    private func queryLLM(prompt: String) async throws {
+        if session == nil { setupSession() }
+        guard let session else {
+            conversationLog += "No LLM configured. ⌘⌥S to set up.\n\n"
+            overlay?.setText(conversationLog, for: .aiResponse)
+            return
+        }
+
         var acc = ""
         for try await snap in session.streamResponse(to: prompt) {
-            acc = snap.content; overlay?.setText(conversationLog + acc + "\n", for: .aiResponse)
+            acc = snap.content
+            overlay?.setText(conversationLog + acc + "\n", for: .aiResponse)
         }
         if acc.isEmpty { acc = "(no response)" }
-        conversationLog += acc + "\n\n"; overlay?.setText(conversationLog, for: .aiResponse)
-    }
-
-    private func streamRemote(prompt: String) async throws {
-        let s = AppSettings.shared
-        guard let url = URL(string: s.remoteEndpoint) else { throw LLMError.invalidEndpoint }
-        let sysPr = "You are a helpful meeting/interview assistant. Analyze context, give concise actionable advice. For coding: approach + key code. Respond in \(s.responseLanguage)."
-        let body: [String: Any] = ["model": s.remoteModel, "messages": [["role":"system","content":sysPr],["role":"user","content":prompt]], "max_tokens": 2048, "temperature": 0.7, "stream": true]
-        var req = URLRequest(url: url); req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(s.remoteAPIKey)", forHTTPHeaderField: "Authorization")
-        req.httpBody = try JSONSerialization.data(withJSONObject: body); req.timeoutInterval = 120
-
-        let (bytes, resp) = try await URLSession.shared.bytes(for: req)
-        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
-            var d = Data(); for try await b in bytes { d.append(b) }
-            throw LLMError.apiError(statusCode: (resp as? HTTPURLResponse)?.statusCode ?? 0, message: String(data: d, encoding: .utf8) ?? "")
-        }
-        var acc = ""
-        for try await line in bytes.lines {
-            guard !Task.isCancelled, line.hasPrefix("data: ") else { if line.hasPrefix("data: ") { continue } else { continue } }
-            let j = String(line.dropFirst(6)); guard j != "[DONE]" else { break }
-            guard let data = j.data(using: .utf8), let json = try? JSONSerialization.jsonObject(with: data) as? [String:Any],
-                  let ch = json["choices"] as? [[String:Any]], let delta = ch.first?["delta"] as? [String:Any],
-                  let content = delta["content"] as? String else { continue }
-            acc += content; overlay?.setText(conversationLog + acc, for: .aiResponse)
-        }
-        if acc.isEmpty { acc = "(no response)" }
-        conversationLog += acc + "\n\n"; overlay?.setText(conversationLog, for: .aiResponse)
-    }
-}
-
-enum LLMError: Error, LocalizedError {
-    case localUnavailable, invalidEndpoint, networkError, parseError
-    case apiError(statusCode: Int, message: String)
-    var errorDescription: String? {
-        switch self {
-        case .localUnavailable: "Foundation Models unavailable"
-        case .invalidEndpoint: "Invalid API endpoint"
-        case .networkError: "Network error"
-        case .apiError(let c, let m): "API error (\(c)): \(m)"
-        case .parseError: "Parse error"
-        }
+        conversationLog += acc + "\n\n"
+        overlay?.setText(conversationLog, for: .aiResponse)
     }
 }

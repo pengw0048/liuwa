@@ -17,10 +17,12 @@ final class AppSettings: @unchecked Sendable {
     var transcriptionRatio: CGFloat = 0.30
 
     // LLM
+    static let llmProviders = ["local", "openai", "anthropic", "ollama"]
+    static let llmProviderLabels = ["Local (Apple AI)", "OpenAI", "Anthropic (Claude)", "Ollama"]
+    var llmProvider: String = "local"  // "local", "openai", "anthropic", "ollama"
     var remoteAPIKey: String = ""
-    var remoteModel: String = "gpt-4o-mini"
-    var remoteEndpoint: String = "https://api.openai.com/v1/chat/completions"
-    var useLocalModel: Bool = true
+    var remoteModel: String = ""
+    var remoteEndpoint: String = ""
     var responseLanguage: String = "English"
 
     // Screen capture — two independent toggles
@@ -102,7 +104,9 @@ final class AppSettings: @unchecked Sendable {
         if let v = json["api_key"] as? String { remoteAPIKey = v }
         if let v = json["model"] as? String { remoteModel = v }
         if let v = json["endpoint"] as? String { remoteEndpoint = v }
-        if let v = json["use_local_model"] as? Bool { useLocalModel = v }
+        if let v = json["llm_provider"] as? String { llmProvider = v }
+        // Migration: old config may have use_local_model
+        if json["llm_provider"] == nil, let v = json["use_local_model"] as? Bool { llmProvider = v ? "local" : "openai" }
         if let v = json["response_language"] as? String { responseLanguage = v }
         if let v = json["send_screen_text"] as? Bool { sendScreenText = v }
         if let v = json["send_screenshot"] as? Bool { sendScreenshot = v }
@@ -128,7 +132,7 @@ final class AppSettings: @unchecked Sendable {
             "transparency": transparency, "corner_radius": cornerRadius,
             "font_size": fontSize, "font_name": fontName, "transcription_ratio": transcriptionRatio,
             "api_key": remoteAPIKey, "model": remoteModel, "endpoint": remoteEndpoint,
-            "use_local_model": useLocalModel, "response_language": responseLanguage,
+            "llm_provider": llmProvider, "response_language": responseLanguage,
             "send_screen_text": sendScreenText, "send_screenshot": sendScreenshot,
             "docs_directory": docsDirectory, "presets": presetArr,
             "hotkey_bindings": hotkeyBindings,

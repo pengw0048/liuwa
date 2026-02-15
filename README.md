@@ -71,26 +71,21 @@ Default bindings:
 
 **Screen content extraction** -- Two modes: (1) Accessibility API reads text directly from the active window, (2) ScreenCaptureKit takes a screenshot with OCR via Apple Vision framework.
 
-**LLM integration** -- Supports macOS 26 Foundation Models (~3B parameter on-device model) for fully offline operation, or any OpenAI-compatible remote API (GPT-4o, Claude, etc.) for higher quality responses.
+**LLM integration** -- Supports macOS 26 Foundation Models (~3B parameter on-device model) for fully offline operation, plus OpenAI, Anthropic (Claude), and Ollama via [AnyLanguageModel](https://github.com/mattt/AnyLanguageModel). Switch providers in the settings window.
 
 **Configurable UI** -- Transparency, width, font size, and hotkey bindings are all adjustable through a settings dialog with live preview.
 
 ## Configuration
 
-Settings are stored at `~/.liuwa/config.json` and can be edited through the in-app settings window (⌘⌥S). You can also edit the file directly:
+All settings are configurable through the in-app settings window (⌘⌥S). Settings persist to `~/.liuwa/config.json`.
 
-```bash
-mkdir -p ~/.liuwa
-cp config.example.json ~/.liuwa/config.json
-```
+Supported LLM providers: Local (Apple Foundation Models), OpenAI, Anthropic (Claude), Ollama. Select a provider and fill in the credentials in the settings window.
 
 To load reference documents (shown via ⌘⌥D), place `.txt`, `.md`, `.json`, or `.swift` files in `~/Documents/Liuwa/` (configurable in settings).
 
 ## How the invisibility works
 
 macOS windows have a `sharingType` property. Setting it to `.none` tells the window server to exclude the window from all capture APIs, including ScreenCaptureKit (used by QuickTime, Zoom, Meet, OBS, and most modern tools) and the legacy `CGWindowListCreateImage` API.
-
-This is a public, documented API. See [RESEARCH.md](RESEARCH.md) for detailed findings and test results.
 
 ## Project structure
 

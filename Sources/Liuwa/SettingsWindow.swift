@@ -45,7 +45,7 @@ final class SettingsWindow {
         let lx: CGFloat = 12, fx: CGFloat = 140, fw: CGFloat = 290
 
         func sec(_ t: String) {
-            if y > 12 { y += 4 }  // spacing before section
+            if y > 12 { y += 4 }
             let l = NSTextField(labelWithString: t); l.font = .systemFont(ofSize: 11, weight: .bold)
             l.frame = NSRect(x: lx, y: y, width: 300, height: 14); doc.addSubview(l); y += 17
         }
@@ -71,21 +71,50 @@ final class SettingsWindow {
         // ── LLM ──
         sec("LLM")
         lbl("Provider:")
-        let seg = NSSegmentedControl(labels: ["Local (Apple AI)", "Remote API"], trackingMode: .selectOne, target: nil, action: nil)
-        seg.frame = NSRect(x: fx, y: y, width: 220, height: 22)
-        seg.selectedSegment = s.useLocalModel ? 0 : 1
-        doc.addSubview(seg); y += 26
+        let providerP = NSPopUpButton(frame: NSRect(x: fx, y: y-2, width: 180, height: 20))
+        for label in AppSettings.llmProviderLabels { providerP.addItem(withTitle: label) }
+        if let idx = AppSettings.llmProviders.firstIndex(of: s.llmProvider) { providerP.selectItem(at: idx) }
+        providerP.font = .systemFont(ofSize: 11); doc.addSubview(providerP); y += 24
+
+        let needsKey = (s.llmProvider == "openai" || s.llmProvider == "anthropic")
+        let needsModel = (s.llmProvider != "local")
+        let needsEndpoint = (s.llmProvider == "openai" || s.llmProvider == "ollama")
 
         var keyF: NSSecureTextField?
         var modF: NSTextField?
         var endF: NSTextField?
-        if !s.useLocalModel {
+
+        if needsKey {
             lbl("API Key:")
-            let k = NSSecureTextField(string: s.remoteAPIKey); k.frame = NSRect(x: fx, y: y, width: fw, height: 18); k.placeholderString = "sk-..."; doc.addSubview(k); keyF = k; y += 20
+            let k = NSSecureTextField(string: s.remoteAPIKey)
+            k.frame = NSRect(x: fx, y: y, width: fw, height: 18)
+            k.placeholderString = s.llmProvider == "anthropic" ? "sk-ant-..." : "sk-..."
+            doc.addSubview(k); keyF = k; y += 20
+        }
+
+        if needsModel {
             lbl("Model:")
-            let m = NSTextField(string: s.remoteModel); m.frame = NSRect(x: fx, y: y, width: fw, height: 18); m.placeholderString = "gpt-4o-mini"; doc.addSubview(m); modF = m; y += 20
+            let m = NSTextField(string: s.remoteModel)
+            m.frame = NSRect(x: fx, y: y, width: fw, height: 18)
+            switch s.llmProvider {
+            case "openai": m.placeholderString = "gpt-4o-mini"
+            case "anthropic": m.placeholderString = "claude-sonnet-4-5-20250929"
+            case "ollama": m.placeholderString = "llama3.2"
+            default: break
+            }
+            doc.addSubview(m); modF = m; y += 20
+        }
+
+        if needsEndpoint {
             lbl("Endpoint:")
-            let e = NSTextField(string: s.remoteEndpoint); e.frame = NSRect(x: fx, y: y, width: fw, height: 18); e.placeholderString = "https://api.openai.com/v1/chat/completions"; doc.addSubview(e); endF = e; y += 22
+            let e = NSTextField(string: s.remoteEndpoint)
+            e.frame = NSRect(x: fx, y: y, width: fw, height: 18)
+            switch s.llmProvider {
+            case "openai": e.placeholderString = "(leave empty for api.openai.com)"
+            case "ollama": e.placeholderString = "http://localhost:11434"
+            default: break
+            }
+            doc.addSubview(e); endF = e; y += 22
         }
 
         lbl("Language:")
@@ -96,9 +125,9 @@ final class SettingsWindow {
 
         // ── Screen Capture ──
         sec("Screen Capture")
-        let txtChk = NSButton(checkboxWithTitle: "📝 Send text (Accessibility)", target: nil, action: nil)
+        let txtChk = NSButton(checkboxWithTitle: "Send text (Accessibility)", target: nil, action: nil)
         txtChk.state = s.sendScreenText ? .on : .off; txtChk.frame = NSRect(x: fx, y: y, width: 300, height: 16); doc.addSubview(txtChk); y += 19
-        let imgChk = NSButton(checkboxWithTitle: "📷 Send screenshot (OCR)", target: nil, action: nil)
+        let imgChk = NSButton(checkboxWithTitle: "Send screenshot (OCR)", target: nil, action: nil)
         imgChk.state = s.sendScreenshot ? .on : .off; imgChk.frame = NSRect(x: fx, y: y, width: 300, height: 16); doc.addSubview(imgChk); y += 20
 
         // ── Presets ──
@@ -119,7 +148,6 @@ final class SettingsWindow {
 
         // ── Hotkeys ──
         sec("Hotkeys (all ⌘⌥ + key)")
-        // Define actions in display order with descriptions
         let hotkeyDefs: [(action: String, label: String)] = [
             ("toggleOverlay", "👁‍🗨 Show/Hide"),
             ("toggleGhost", "👻 Ghost"),
@@ -138,9 +166,8 @@ final class SettingsWindow {
             ("quit", "❌ Quit"),
         ]
 
-        // Two-column grid
         let colW: CGFloat = (W - 40) / 2
-        var hkFields: [(String, NSTextField)] = []  // (action, field)
+        var hkFields: [(String, NSTextField)] = []
         var col = 0
         for def in hotkeyDefs {
             let cx = lx + CGFloat(col) * colW
@@ -158,9 +185,8 @@ final class SettingsWindow {
             col += 1
             if col >= 2 { col = 0; y += 20 }
         }
-        if col != 0 { y += 20 }  // finish last row
+        if col != 0 { y += 20 }
 
-        // Arrow keys (read-only)
         let arrowL = NSTextField(labelWithString: "↑↓ Scroll AI (fixed)")
         arrowL.font = .systemFont(ofSize: 10); arrowL.textColor = .secondaryLabelColor
         arrowL.frame = NSRect(x: lx, y: y, width: 200, height: 14); doc.addSubview(arrowL); y += 18
@@ -194,7 +220,7 @@ final class SettingsWindow {
         let h = SettingsHandler(
             settingsWindow: self,
             trSl: trSl, wdSl: wdSl, fsSl: fsSl, trV: trV, wdV: wdV, fsV: fsV,
-            seg: seg, keyF: keyF, modF: modF, endF: endF,
+            providerP: providerP, keyF: keyF, modF: modF, endF: endF,
             langP: langP, txtChk: txtChk, imgChk: imgChk,
             pLF: pLF, pPF: pPF, docF: docField, brBtn: brBtn,
             hkFields: hkFields,
@@ -211,13 +237,13 @@ final class SettingsWindow {
 
 private struct SettingsSnapshot {
     let transparency: CGFloat; let width: CGFloat; let fontSize: CGFloat
-    let useLocalModel: Bool; let remoteAPIKey, remoteModel, remoteEndpoint, responseLanguage: String
+    let llmProvider: String; let remoteAPIKey, remoteModel, remoteEndpoint, responseLanguage: String
     let sendScreenText, sendScreenshot: Bool; let docsDirectory: String
     let presets: [(String, String)]; let hotkeyBindings: [String: String]
 
     init(_ s: AppSettings) {
         transparency = s.transparency; width = s.width; fontSize = s.fontSize
-        useLocalModel = s.useLocalModel; remoteAPIKey = s.remoteAPIKey
+        llmProvider = s.llmProvider; remoteAPIKey = s.remoteAPIKey
         remoteModel = s.remoteModel; remoteEndpoint = s.remoteEndpoint
         responseLanguage = s.responseLanguage; sendScreenText = s.sendScreenText
         sendScreenshot = s.sendScreenshot; docsDirectory = s.docsDirectory
@@ -227,7 +253,7 @@ private struct SettingsSnapshot {
     func restore() {
         let s = AppSettings.shared
         s.transparency = transparency; s.width = width; s.fontSize = fontSize
-        s.useLocalModel = useLocalModel; s.remoteAPIKey = remoteAPIKey
+        s.llmProvider = llmProvider; s.remoteAPIKey = remoteAPIKey
         s.remoteModel = remoteModel; s.remoteEndpoint = remoteEndpoint
         s.responseLanguage = responseLanguage; s.sendScreenText = sendScreenText
         s.sendScreenshot = sendScreenshot; s.docsDirectory = docsDirectory
@@ -244,7 +270,7 @@ private final class FlippedView: NSView { override var isFlipped: Bool { true } 
 private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     weak var settingsWindow: SettingsWindow?
     let trSl, wdSl, fsSl: NSSlider; let trV, wdV, fsV: NSTextField
-    let seg: NSSegmentedControl
+    let providerP: NSPopUpButton
     let keyF: NSSecureTextField?; let modF, endF: NSTextField?
     let langP: NSPopUpButton; let txtChk, imgChk: NSButton
     let pLF, pPF: [NSTextField]; let docF: NSTextField; let brBtn: NSButton
@@ -255,7 +281,7 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     init(settingsWindow: SettingsWindow,
          trSl: NSSlider, wdSl: NSSlider, fsSl: NSSlider,
          trV: NSTextField, wdV: NSTextField, fsV: NSTextField,
-         seg: NSSegmentedControl, keyF: NSSecureTextField?, modF: NSTextField?, endF: NSTextField?,
+         providerP: NSPopUpButton, keyF: NSSecureTextField?, modF: NSTextField?, endF: NSTextField?,
          langP: NSPopUpButton, txtChk: NSButton, imgChk: NSButton,
          pLF: [NSTextField], pPF: [NSTextField], docF: NSTextField, brBtn: NSButton,
          hkFields: [(String, NSTextField)],
@@ -264,7 +290,7 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         self.settingsWindow = settingsWindow
         self.trSl = trSl; self.wdSl = wdSl; self.fsSl = fsSl
         self.trV = trV; self.wdV = wdV; self.fsV = fsV
-        self.seg = seg; self.keyF = keyF; self.modF = modF; self.endF = endF
+        self.providerP = providerP; self.keyF = keyF; self.modF = modF; self.endF = endF
         self.langP = langP; self.txtChk = txtChk; self.imgChk = imgChk
         self.pLF = pLF; self.pPF = pPF; self.docF = docF; self.brBtn = brBtn
         self.hkFields = hkFields
@@ -272,9 +298,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         self.onLivePreview = onLivePreview
         super.init()
 
-        // All sliders: live preview
         for sl in [trSl, wdSl, fsSl] { sl.target = self; sl.action = #selector(sliderMoved(_:)); sl.isContinuous = true }
-        seg.target = self; seg.action = #selector(segChanged)
+        providerP.target = self; providerP.action = #selector(providerChanged)
         brBtn.target = self; brBtn.action = #selector(browse)
         saveBtn.target = self; saveBtn.action = #selector(save)
         cancelBtn.target = self; cancelBtn.action = #selector(doCancel)
@@ -295,7 +320,7 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         onLivePreview()
     }
 
-    @objc func segChanged() {
+    @objc func providerChanged() {
         collectToSettings()
         settingsWindow?.rebuild()
     }
@@ -315,7 +340,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         s.transparency = CGFloat(trSl.doubleValue)
         s.width = CGFloat(wdSl.doubleValue)
         s.fontSize = CGFloat(fsSl.doubleValue)
-        s.useLocalModel = seg.selectedSegment == 0
+        let idx = providerP.indexOfSelectedItem
+        s.llmProvider = idx >= 0 && idx < AppSettings.llmProviders.count ? AppSettings.llmProviders[idx] : "local"
         if let k = keyF { s.remoteAPIKey = k.stringValue }
         if let m = modF { s.remoteModel = m.stringValue }
         if let e = endF { s.remoteEndpoint = e.stringValue }
@@ -330,7 +356,6 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         }
         s.presets = presets
 
-        // Collect hotkey bindings
         for (action, field) in hkFields {
             let val = field.stringValue.trimmingCharacters(in: .whitespaces).uppercased()
             if !val.isEmpty {
