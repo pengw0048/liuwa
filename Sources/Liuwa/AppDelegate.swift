@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 
 final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     var overlay: OverlayController!
@@ -10,9 +11,159 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     var docs: DocumentManager!
     var settings: SettingsWindow!
 
+    // Permission setup window
+    private var setupWindow: NSWindow?
+    private var permTimer: Timer?
+    private var axLabel: NSTextField?
+    private var micLabel: NSTextField?
+    private var scrLabel: NSTextField?
+    private var continueBtn: NSButton?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupEditMenu()
 
+        if AXIsProcessTrusted() {
+            launchApp()
+        } else {
+            showPermissionWindow()
+        }
+    }
+
+    // MARK: - Permission Check
+
+    @MainActor private func showPermissionWindow() {
+        // Show dock icon temporarily so user can see us
+        NSApp.setActivationPolicy(.regular)
+
+        let w: CGFloat = 460, h: CGFloat = 310
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let frame = NSRect(x: (screen.frame.width - w) / 2, y: (screen.frame.height - h) / 2, width: w, height: h)
+        let win = NSWindow(contentRect: frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        win.title = "Liuwa — Setup"
+        win.level = .floating
+        win.isReleasedWhenClosed = false
+
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
+
+        let title = NSTextField(labelWithString: "Liuwa needs permissions to work properly")
+        title.font = .systemFont(ofSize: 16, weight: .semibold)
+        title.frame = NSRect(x: 20, y: h - 40, width: w - 40, height: 24)
+        root.addSubview(title)
+
+        let desc = NSTextField(wrappingLabelWithString:
+            "Liuwa uses an invisible overlay with global hotkeys. " +
+            "Without Accessibility permission, hotkeys won't work and " +
+            "you'll be unable to control the app once it becomes invisible.\n\n" +
+            "Grant permissions in System Settings, then click Continue.")
+        desc.font = .systemFont(ofSize: 12)
+        desc.frame = NSRect(x: 20, y: h - 120, width: w - 40, height: 72)
+        root.addSubview(desc)
+
+        var y = h - 155
+
+        // Accessibility (critical)
+        let axLbl = makePermRow(parent: root, y: y, label: "Accessibility (required)", status: AXIsProcessTrusted())
+        axLabel = axLbl
+        y -= 28
+
+        // Microphone
+        let micStatus = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        let micLbl = makePermRow(parent: root, y: y, label: "Microphone (for transcription)", status: micStatus)
+        micLabel = micLbl
+        y -= 28
+
+        // Screen Recording
+        let scrStatus = CGPreflightScreenCaptureAccess()
+        let scrLbl = makePermRow(parent: root, y: y, label: "Screen Recording (for screen capture)", status: scrStatus)
+        scrLabel = scrLbl
+        y -= 40
+
+        // Open System Settings button
+        let openBtn = NSButton(title: "Open Accessibility Settings…", target: self, action: #selector(openAccessibilitySettings))
+        openBtn.bezelStyle = .rounded
+        openBtn.frame = NSRect(x: 20, y: y, width: 220, height: 28)
+        root.addSubview(openBtn)
+
+        let openMicBtn = NSButton(title: "Open Microphone Settings…", target: self, action: #selector(openMicSettings))
+        openMicBtn.bezelStyle = .rounded
+        openMicBtn.frame = NSRect(x: 250, y: y, width: 190, height: 28)
+        root.addSubview(openMicBtn)
+        y -= 36
+
+        let openScrBtn = NSButton(title: "Open Screen Recording Settings…", target: self, action: #selector(openScreenSettings))
+        openScrBtn.bezelStyle = .rounded
+        openScrBtn.frame = NSRect(x: 20, y: y, width: 250, height: 28)
+        root.addSubview(openScrBtn)
+        y -= 50
+
+        // Continue button
+        let btn = NSButton(title: "Continue", target: self, action: #selector(permContinue))
+        btn.bezelStyle = .rounded
+        btn.font = .systemFont(ofSize: 14, weight: .semibold)
+        btn.frame = NSRect(x: w - 130, y: 16, width: 110, height: 32)
+        btn.isEnabled = AXIsProcessTrusted()
+        btn.keyEquivalent = "\r"
+        root.addSubview(btn)
+        continueBtn = btn
+
+        win.contentView = root
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        setupWindow = win
+
+        // Poll for permission changes every 1s
+        permTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updatePermStatus() }
+        }
+    }
+
+    @MainActor private func makePermRow(parent: NSView, y: CGFloat, label: String, status: Bool) -> NSTextField {
+        let icon = status ? "✅" : "❌"
+        let lbl = NSTextField(labelWithString: "\(icon)  \(label)")
+        lbl.font = .systemFont(ofSize: 13)
+        lbl.frame = NSRect(x: 24, y: y, width: parent.frame.width - 48, height: 20)
+        parent.addSubview(lbl)
+        return lbl
+    }
+
+    @MainActor private func updatePermStatus() {
+        let ax = AXIsProcessTrusted()
+        let mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        let scr = CGPreflightScreenCaptureAccess()
+        axLabel?.stringValue  = "\(ax  ? "✅" : "❌")  Accessibility (required)"
+        micLabel?.stringValue = "\(mic ? "✅" : "❌")  Microphone (for transcription)"
+        scrLabel?.stringValue = "\(scr ? "✅" : "❌")  Screen Recording (for screen capture)"
+        continueBtn?.isEnabled = ax
+    }
+
+    @objc private func openAccessibilitySettings() {
+        // Trigger the system prompt + open settings
+        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        AXIsProcessTrustedWithOptions(opts)
+    }
+
+    @objc private func openMicSettings() {
+        AVCaptureDevice.requestAccess(for: .audio) { _ in
+            Task { @MainActor in self.updatePermStatus() }
+        }
+    }
+
+    @objc private func openScreenSettings() {
+        CGRequestScreenCaptureAccess()
+    }
+
+    @objc @MainActor private func permContinue() {
+        guard AXIsProcessTrusted() else { return }
+        permTimer?.invalidate(); permTimer = nil
+        setupWindow?.close(); setupWindow = nil
+        // Hide dock icon again
+        NSApp.setActivationPolicy(.accessory)
+        launchApp()
+    }
+
+    // MARK: - Main Launch
+
+    @MainActor private func launchApp() {
         overlay = OverlayController()
         transcription = TranscriptionManager(overlay: overlay)
         screenCapture = ScreenCaptureManager(overlay: overlay)
@@ -35,7 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         settings.onLivePreview = { [weak self] in self?.overlay.livePreview() }
 
         if hotkeys.install() { print("Hotkeys OK") }
-        else { print("CGEventTap failed - enable Accessibility") }
+        else { print("CGEventTap failed - check Accessibility permission") }
 
         print("Liuwa started.")
     }
