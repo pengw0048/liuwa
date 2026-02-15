@@ -7,6 +7,7 @@ Built on macOS public APIs only -- no private frameworks, no root required.
 ## Requirements
 
 - macOS 26 (Tahoe) or later
+- Apple Silicon (M1 or later) -- required for on-device Foundation Models (Apple AI)
 - Swift 6.2+ (included with Xcode 26 Command Line Tools)
 
 ## Build & Run

@@ -8,7 +8,9 @@ enum HotkeyAction: String, CaseIterable {
     case toggleClickThrough
     case toggleTranscription
     case toggleSystemAudio
+    case clearTranscription
     case showDocs
+    case toggleAttachDoc
     case openSettings
     case cycleScreenText
     case cycleScreenshot

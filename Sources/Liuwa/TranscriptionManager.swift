@@ -35,13 +35,11 @@ final class TranscriptionManager {
         isRunning = true
         finalizedTranscript = ""
         volatileTranscript = ""
-        overlay?.setText("Initializing mic transcription…", for: .transcription)
         overlay?.setMicActive(true)
 
         do {
             try await setupAndRun()
         } catch {
-            overlay?.setText("Mic init failed: \(error.localizedDescription)", for: .transcription)
             overlay?.setMicActive(false)
             isRunning = false
             print("Transcription error: \(error)")
@@ -67,14 +65,20 @@ final class TranscriptionManager {
             transcriber = nil
             analyzerFormat = nil
 
-            let finalText = finalizedTranscript.isEmpty ? "(no content)" : finalizedTranscript
-            overlay?.setText("Mic stopped.\n\n\(finalText)", for: .transcription)
+            // Final update with finalized text only
+            overlay?.setMicTranscript(finalizedTranscript)
             overlay?.setMicActive(false)
         }
     }
 
     func getTranscript() -> String {
         return finalizedTranscript + volatileTranscript
+    }
+
+    func clearTranscript() {
+        finalizedTranscript = ""
+        volatileTranscript = ""
+        overlay?.setMicTranscript("")
     }
 
     // MARK: - Private Setup
@@ -93,7 +97,7 @@ final class TranscriptionManager {
         case .unsupported:
             throw TranscriptionError.localeNotSupported
         case .supported, .downloading:
-            overlay?.setText("Downloading speech model…", for: .transcription)
+            print("Downloading speech model…")
             if let request = try await AssetInventory.assetInstallationRequest(supporting: [newTranscriber]) {
                 try await request.downloadAndInstall()
             }
@@ -113,8 +117,6 @@ final class TranscriptionManager {
             modules: [newTranscriber]
         )
         self.analyzer = newAnalyzer
-
-        overlay?.setText("Listening (mic)…\n\n", for: .transcription)
 
         startResultProcessing()
 
@@ -141,7 +143,7 @@ final class TranscriptionManager {
                     }
 
                     let display = self.finalizedTranscript + self.volatileTranscript
-                    self.overlay?.setText("Listening (mic)…\n\n\(display)", for: .transcription)
+                    self.overlay?.setMicTranscript(display)
                 }
             } catch {
                 if !Task.isCancelled {

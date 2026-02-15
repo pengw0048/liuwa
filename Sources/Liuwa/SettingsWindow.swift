@@ -40,7 +40,7 @@ final class SettingsWindow {
         snapshot = SettingsSnapshot(s)
 
         let W: CGFloat = 480
-        let doc = FlippedView(frame: NSRect(x: 0, y: 0, width: W - 16, height: 1200))
+        let doc = FlippedView(frame: NSRect(x: 0, y: 0, width: W - 16, height: 1400))
         var y: CGFloat = 8
         let lx: CGFloat = 12, fx: CGFloat = 140, fw: CGFloat = 290
 
@@ -80,14 +80,15 @@ final class SettingsWindow {
         let needsModel = (s.llmProvider != "local")
         let needsEndpoint = (s.llmProvider == "openai" || s.llmProvider == "ollama")
 
-        var keyF: NSSecureTextField?
+        var keyF: NSTextField?
         var modF: NSTextField?
         var endF: NSTextField?
 
         if needsKey {
             lbl("API Key:")
-            let k = NSSecureTextField(string: s.remoteAPIKey)
+            let k = NSTextField(string: s.remoteAPIKey)
             k.frame = NSRect(x: fx, y: y, width: fw, height: 18)
+            k.font = .systemFont(ofSize: 11)
             switch s.llmProvider {
             case "anthropic": k.placeholderString = "sk-ant-..."
             case "gemini": k.placeholderString = "AIza..."
@@ -100,6 +101,7 @@ final class SettingsWindow {
             lbl("Model:")
             let m = NSTextField(string: s.remoteModel)
             m.frame = NSRect(x: fx, y: y, width: fw, height: 18)
+            m.font = .systemFont(ofSize: 11)
             switch s.llmProvider {
             case "openai": m.placeholderString = "e.g. gpt-4o-mini"
             case "anthropic": m.placeholderString = "e.g. claude-sonnet-4-5-20250929"
@@ -114,6 +116,7 @@ final class SettingsWindow {
             lbl("Endpoint:")
             let e = NSTextField(string: s.remoteEndpoint)
             e.frame = NSRect(x: fx, y: y, width: fw, height: 18)
+            e.font = .systemFont(ofSize: 11)
             switch s.llmProvider {
             case "openai": e.placeholderString = "(leave empty for api.openai.com)"
             case "ollama": e.placeholderString = "http://localhost:11434"
@@ -132,8 +135,26 @@ final class SettingsWindow {
         sec("Screen Capture")
         let txtChk = NSButton(checkboxWithTitle: "Send text (Accessibility)", target: nil, action: nil)
         txtChk.state = s.sendScreenText ? .on : .off; txtChk.frame = NSRect(x: fx, y: y, width: 300, height: 16); doc.addSubview(txtChk); y += 19
-        let imgChk = NSButton(checkboxWithTitle: "Send screenshot (OCR)", target: nil, action: nil)
-        imgChk.state = s.sendScreenshot ? .on : .off; imgChk.frame = NSRect(x: fx, y: y, width: 300, height: 16); doc.addSubview(imgChk); y += 20
+        let imgChk = NSButton(checkboxWithTitle: "Send screenshot", target: nil, action: nil)
+        imgChk.state = s.sendScreenshot ? .on : .off; imgChk.frame = NSRect(x: fx, y: y, width: 300, height: 16); doc.addSubview(imgChk); y += 19
+
+        lbl("Screenshot mode:")
+        let ssP = NSPopUpButton(frame: NSRect(x: fx, y: y-2, width: 160, height: 20))
+        ssP.addItem(withTitle: "Auto (local=OCR, API=image)")
+        ssP.addItem(withTitle: "Always OCR")
+        ssP.addItem(withTitle: "Always send image")
+        let ssModes = ["auto", "ocr", "image"]
+        if let idx = ssModes.firstIndex(of: s.screenshotMode) { ssP.selectItem(at: idx) }
+        ssP.font = .systemFont(ofSize: 10); doc.addSubview(ssP); y += 22
+
+        // ── Documents ──
+        sec("Documents")
+        lbl("Directory:")
+        let docField = NSTextField(string: s.docsDirectory); docField.frame = NSRect(x: fx, y: y, width: fw-54, height: 18); docField.font = .systemFont(ofSize: 10); doc.addSubview(docField)
+        let brBtn = NSButton(title: "Browse…", target: nil, action: nil); brBtn.frame = NSRect(x: fx+fw-50, y: y-1, width: 54, height: 20); brBtn.font = .systemFont(ofSize: 10); doc.addSubview(brBtn); y += 22
+
+        let attachChk = NSButton(checkboxWithTitle: "Attach current doc to AI context", target: nil, action: nil)
+        attachChk.state = s.attachDocToContext ? .on : .off; attachChk.frame = NSRect(x: fx, y: y, width: 300, height: 16); doc.addSubview(attachChk); y += 20
 
         // ── Presets ──
         sec("AI Presets (⌘⌥ 1-4)")
@@ -145,12 +166,6 @@ final class SettingsWindow {
             let pf = NSTextField(string: p?.prompt ?? ""); pf.frame = NSRect(x: fx+72, y: y, width: fw-72, height: 18); pf.placeholderString = "Prompt"; pf.font = .systemFont(ofSize: 10); doc.addSubview(pf); pPF.append(pf); y += 21
         }
 
-        // ── Documents ──
-        sec("Documents")
-        lbl("Directory:")
-        let docField = NSTextField(string: s.docsDirectory); docField.frame = NSRect(x: fx, y: y, width: fw-54, height: 18); docField.font = .systemFont(ofSize: 10); doc.addSubview(docField)
-        let brBtn = NSButton(title: "Browse…", target: nil, action: nil); brBtn.frame = NSRect(x: fx+fw-50, y: y-1, width: 54, height: 20); brBtn.font = .systemFont(ofSize: 10); doc.addSubview(brBtn); y += 22
-
         // ── Hotkeys ──
         sec("Hotkeys (all ⌘⌥ + key)")
         let hotkeyDefs: [(action: String, label: String)] = [
@@ -160,6 +175,7 @@ final class SettingsWindow {
             ("openSettings", "⚙ Settings"),
             ("toggleTranscription", "🎤 Mic"),
             ("toggleSystemAudio", "🔊 System Audio"),
+            ("clearTranscription", "🗑 Clear Transcript"),
             ("cycleScreenText", "📝 Screen Text"),
             ("cycleScreenshot", "📷 Screenshot"),
             ("preset1", "1️⃣ Preset 1"),
@@ -168,6 +184,7 @@ final class SettingsWindow {
             ("preset4", "4️⃣ Preset 4"),
             ("clearAI", "🧹 Clear AI"),
             ("showDocs", "📂 Documents"),
+            ("toggleAttachDoc", "📎 Attach Doc"),
             ("quit", "❌ Quit"),
         ]
 
@@ -211,7 +228,7 @@ final class SettingsWindow {
 
         doc.frame = NSRect(x: 0, y: 0, width: W - 16, height: y + 4)
 
-        let H = min(y + 40, 680.0)
+        let H = min(y + 40, 720.0)
         let win = NSWindow(contentRect: NSRect(x: 200, y: 100, width: W, height: H),
                            styleMask: [.titled, .closable], backing: .buffered, defer: false)
         win.title = "Liuwa Settings"; win.center(); win.isReleasedWhenClosed = false
@@ -226,7 +243,8 @@ final class SettingsWindow {
             settingsWindow: self,
             trSl: trSl, wdSl: wdSl, fsSl: fsSl, trV: trV, wdV: wdV, fsV: fsV,
             providerP: providerP, keyF: keyF, modF: modF, endF: endF,
-            langP: langP, txtChk: txtChk, imgChk: imgChk,
+            langP: langP, txtChk: txtChk, imgChk: imgChk, ssP: ssP,
+            attachChk: attachChk,
             pLF: pLF, pPF: pPF, docF: docField, brBtn: brBtn,
             hkFields: hkFields,
             saveBtn: saveBtn, cancelBtn: cancelBtn,
@@ -243,7 +261,8 @@ final class SettingsWindow {
 private struct SettingsSnapshot {
     let transparency: CGFloat; let width: CGFloat; let fontSize: CGFloat
     let llmProvider: String; let remoteAPIKey, remoteModel, remoteEndpoint, responseLanguage: String
-    let sendScreenText, sendScreenshot: Bool; let docsDirectory: String
+    let sendScreenText, sendScreenshot: Bool; let screenshotMode: String
+    let docsDirectory: String; let attachDocToContext: Bool
     let presets: [(String, String)]; let hotkeyBindings: [String: String]
 
     init(_ s: AppSettings) {
@@ -251,7 +270,8 @@ private struct SettingsSnapshot {
         llmProvider = s.llmProvider; remoteAPIKey = s.remoteAPIKey
         remoteModel = s.remoteModel; remoteEndpoint = s.remoteEndpoint
         responseLanguage = s.responseLanguage; sendScreenText = s.sendScreenText
-        sendScreenshot = s.sendScreenshot; docsDirectory = s.docsDirectory
+        sendScreenshot = s.sendScreenshot; screenshotMode = s.screenshotMode
+        docsDirectory = s.docsDirectory; attachDocToContext = s.attachDocToContext
         presets = s.presets; hotkeyBindings = s.hotkeyBindings
     }
 
@@ -261,7 +281,8 @@ private struct SettingsSnapshot {
         s.llmProvider = llmProvider; s.remoteAPIKey = remoteAPIKey
         s.remoteModel = remoteModel; s.remoteEndpoint = remoteEndpoint
         s.responseLanguage = responseLanguage; s.sendScreenText = sendScreenText
-        s.sendScreenshot = sendScreenshot; s.docsDirectory = docsDirectory
+        s.sendScreenshot = sendScreenshot; s.screenshotMode = screenshotMode
+        s.docsDirectory = docsDirectory; s.attachDocToContext = attachDocToContext
         s.presets = presets; s.hotkeyBindings = hotkeyBindings
         s.save()
     }
@@ -276,8 +297,9 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     weak var settingsWindow: SettingsWindow?
     let trSl, wdSl, fsSl: NSSlider; let trV, wdV, fsV: NSTextField
     let providerP: NSPopUpButton
-    let keyF: NSSecureTextField?; let modF, endF: NSTextField?
-    let langP: NSPopUpButton; let txtChk, imgChk: NSButton
+    let keyF, modF, endF: NSTextField?
+    let langP: NSPopUpButton; let txtChk, imgChk: NSButton; let ssP: NSPopUpButton
+    let attachChk: NSButton
     let pLF, pPF: [NSTextField]; let docF: NSTextField; let brBtn: NSButton
     let hkFields: [(String, NSTextField)]
     let saveBtn, cancelBtn: NSButton
@@ -286,8 +308,9 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     init(settingsWindow: SettingsWindow,
          trSl: NSSlider, wdSl: NSSlider, fsSl: NSSlider,
          trV: NSTextField, wdV: NSTextField, fsV: NSTextField,
-         providerP: NSPopUpButton, keyF: NSSecureTextField?, modF: NSTextField?, endF: NSTextField?,
-         langP: NSPopUpButton, txtChk: NSButton, imgChk: NSButton,
+         providerP: NSPopUpButton, keyF: NSTextField?, modF: NSTextField?, endF: NSTextField?,
+         langP: NSPopUpButton, txtChk: NSButton, imgChk: NSButton, ssP: NSPopUpButton,
+         attachChk: NSButton,
          pLF: [NSTextField], pPF: [NSTextField], docF: NSTextField, brBtn: NSButton,
          hkFields: [(String, NSTextField)],
          saveBtn: NSButton, cancelBtn: NSButton,
@@ -296,7 +319,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         self.trSl = trSl; self.wdSl = wdSl; self.fsSl = fsSl
         self.trV = trV; self.wdV = wdV; self.fsV = fsV
         self.providerP = providerP; self.keyF = keyF; self.modF = modF; self.endF = endF
-        self.langP = langP; self.txtChk = txtChk; self.imgChk = imgChk
+        self.langP = langP; self.txtChk = txtChk; self.imgChk = imgChk; self.ssP = ssP
+        self.attachChk = attachChk
         self.pLF = pLF; self.pPF = pPF; self.docF = docF; self.brBtn = brBtn
         self.hkFields = hkFields
         self.saveBtn = saveBtn; self.cancelBtn = cancelBtn
@@ -326,7 +350,16 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     }
 
     @objc func providerChanged() {
-        collectToSettings()
+        let s = AppSettings.shared
+        let idx = providerP.indexOfSelectedItem
+        let newProvider = idx >= 0 && idx < AppSettings.llmProviders.count ? AppSettings.llmProviders[idx] : "local"
+        if newProvider != s.llmProvider {
+            s.llmProvider = newProvider
+            // Clear provider-specific fields when switching
+            s.remoteAPIKey = ""
+            s.remoteModel = ""
+            s.remoteEndpoint = ""
+        }
         settingsWindow?.rebuild()
     }
 
@@ -353,7 +386,11 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
         s.responseLanguage = langP.titleOfSelectedItem ?? "English"
         s.sendScreenText = txtChk.state == .on
         s.sendScreenshot = imgChk.state == .on
+        let ssModes = ["auto", "ocr", "image"]
+        let ssIdx = ssP.indexOfSelectedItem
+        s.screenshotMode = ssIdx >= 0 && ssIdx < ssModes.count ? ssModes[ssIdx] : "auto"
         s.docsDirectory = docF.stringValue
+        s.attachDocToContext = attachChk.state == .on
         var presets: [(String,String)] = []
         for i in 0..<4 {
             let l = pLF[i].stringValue; let p = pPF[i].stringValue
@@ -372,6 +409,8 @@ private final class SettingsHandler: NSObject, NSTextFieldDelegate {
     @objc func browse() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
         panel.directoryURL = URL(fileURLWithPath: docF.stringValue)
-        if panel.runModal() == .OK, let url = panel.url { docF.stringValue = url.path }
+        if panel.runModal() == .OK, let url = panel.url { docField.stringValue = url.path }
     }
+
+    private var docField: NSTextField { docF }
 }

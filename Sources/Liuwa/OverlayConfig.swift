@@ -13,24 +13,27 @@ final class AppSettings: @unchecked Sendable {
     var fontSize: CGFloat = 13
     var fontName: String = ""
 
-    // Layout
-    var transcriptionRatio: CGFloat = 0.30
+    // Layout — three sections
+    var transcriptionRatio: CGFloat = 0.25
+    var docRatio: CGFloat = 0.20
 
     // LLM
     static let llmProviders = ["local", "openai", "anthropic", "gemini", "ollama"]
     static let llmProviderLabels = ["Local (Apple AI)", "OpenAI", "Anthropic (Claude)", "Google Gemini", "Ollama"]
-    var llmProvider: String = "local"  // "local", "openai", "anthropic", "gemini", "ollama"
+    var llmProvider: String = "local"
     var remoteAPIKey: String = ""
     var remoteModel: String = ""
     var remoteEndpoint: String = ""
     var responseLanguage: String = "English"
 
-    // Screen capture — two independent toggles
-    var sendScreenText: Bool = true     // AX text
-    var sendScreenshot: Bool = false    // screenshot image / OCR
+    // Screen capture
+    var sendScreenText: Bool = true      // AX text
+    var sendScreenshot: Bool = false     // screenshot
+    var screenshotMode: String = "auto"  // "auto", "ocr", "image"
 
     // Documents
     var docsDirectory: String = NSString("~/Documents/Liuwa").expandingTildeInPath
+    var attachDocToContext: Bool = true
 
     // Presets
     var presets: [(label: String, prompt: String)] = [
@@ -49,7 +52,9 @@ final class AppSettings: @unchecked Sendable {
         "toggleClickThrough": "E",
         "toggleTranscription": "T",
         "toggleSystemAudio": "Y",
+        "clearTranscription": "W",
         "showDocs": "D",
+        "toggleAttachDoc": "A",
         "openSettings": "S",
         "cycleScreenText": "X",
         "cycleScreenshot": "Z",
@@ -103,6 +108,7 @@ final class AppSettings: @unchecked Sendable {
         if let v = json["font_size"] as? CGFloat { fontSize = v }
         if let v = json["font_name"] as? String { fontName = v }
         if let v = json["transcription_ratio"] as? CGFloat { transcriptionRatio = v }
+        if let v = json["doc_ratio"] as? CGFloat { docRatio = v }
         if let v = json["api_key"] as? String { remoteAPIKey = v }
         if let v = json["model"] as? String { remoteModel = v }
         if let v = json["endpoint"] as? String { remoteEndpoint = v }
@@ -112,7 +118,9 @@ final class AppSettings: @unchecked Sendable {
         if let v = json["response_language"] as? String { responseLanguage = v }
         if let v = json["send_screen_text"] as? Bool { sendScreenText = v }
         if let v = json["send_screenshot"] as? Bool { sendScreenshot = v }
+        if let v = json["screenshot_mode"] as? String { screenshotMode = v }
         if let v = json["docs_directory"] as? String { docsDirectory = v }
+        if let v = json["attach_doc_to_context"] as? Bool { attachDocToContext = v }
         if let arr = json["presets"] as? [[String: String]] {
             var loaded: [(String, String)] = []
             for item in arr { if let l = item["label"], let p = item["prompt"] { loaded.append((l, p)) } }
@@ -120,7 +128,6 @@ final class AppSettings: @unchecked Sendable {
             presets = Array(loaded.prefix(4))
         }
         if let hk = json["hotkey_bindings"] as? [String: String] {
-            // Merge with defaults so new actions always have a binding
             var merged = Self.defaultHotkeyBindings
             for (k, v) in hk { merged[k] = v }
             hotkeyBindings = merged
@@ -132,12 +139,14 @@ final class AppSettings: @unchecked Sendable {
         let json: [String: Any] = [
             "width": width, "height_ratio": heightRatio, "margin_right": marginRight,
             "transparency": transparency, "corner_radius": cornerRadius,
-            "font_size": fontSize, "font_name": fontName, "transcription_ratio": transcriptionRatio,
+            "font_size": fontSize, "font_name": fontName,
+            "transcription_ratio": transcriptionRatio, "doc_ratio": docRatio,
             "api_key": remoteAPIKey, "model": remoteModel, "endpoint": remoteEndpoint,
             "llm_provider": llmProvider, "response_language": responseLanguage,
             "send_screen_text": sendScreenText, "send_screenshot": sendScreenshot,
-            "docs_directory": docsDirectory, "presets": presetArr,
-            "hotkey_bindings": hotkeyBindings,
+            "screenshot_mode": screenshotMode,
+            "docs_directory": docsDirectory, "attach_doc_to_context": attachDocToContext,
+            "presets": presetArr, "hotkey_bindings": hotkeyBindings,
         ]
         if let data = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
             FileManager.default.createFile(atPath: configPath, contents: data)

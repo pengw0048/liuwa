@@ -6,12 +6,13 @@ import AnyLanguageModel
 final class LLMManager {
     private weak var overlay: OverlayController?
     weak var screenCapture: ScreenCaptureManager?
+    weak var docs: DocumentManager?
     private var session: LanguageModelSession?
     private var currentTask: Task<Void, Never>?
     private var conversationLog: String = ""
     private var queryCount: Int = 0
 
-    init(overlay: OverlayController, transcription: TranscriptionManager) {
+    init(overlay: OverlayController) {
         self.overlay = overlay; setupSession()
     }
 
@@ -42,8 +43,23 @@ final class LLMManager {
             overlay?.setText(conversationLog + "Generating…", for: .aiResponse)
 
             let prompt = "Respond in \(s.responseLanguage).\n\n【Instruction】\n\(instruction)\n\n\(ctx)"
-            do { try await queryLLM(prompt: prompt) }
+
+            // Determine whether to send image directly
+            let image: CGImage? = shouldSendImage() ? screenCapture?.lastCapturedImage : nil
+
+            do { try await queryLLM(prompt: prompt, image: image) }
             catch { if !Task.isCancelled { conversationLog += "Error: \(error.localizedDescription)\n\n"; overlay?.setText(conversationLog, for: .aiResponse) } }
+        }
+    }
+
+    private func shouldSendImage() -> Bool {
+        let s = AppSettings.shared
+        guard s.sendScreenshot, screenCapture?.lastCapturedImage != nil else { return false }
+        switch s.screenshotMode {
+        case "image": return true
+        case "ocr": return false
+        default: // "auto" — send image to API models, OCR for local
+            return s.llmProvider != "local"
         }
     }
 
@@ -51,15 +67,27 @@ final class LLMManager {
         var p = [String]()
         if c.contains("【Transcript】") { p.append("transcript") }
         if c.contains("【Screen】") { p.append("screen") }
-        if c.contains("【Docs】") { p.append("docs") }
+        if c.contains("【Document】") { p.append("doc") }
         return "ctx: " + (p.isEmpty ? "none" : p.joined(separator: "+"))
     }
 
     private func gatherContext() -> String {
         var c = ""
-        if let t = overlay?.getPanelContent(.transcription), !t.isEmpty { c += "【Transcript】\n\(t)\n\n" }
+
+        // Transcript — WYSIWYG: read exactly what's displayed in the panel
+        if let t = overlay?.getPanelContent(.transcription), !t.isEmpty {
+            c += "【Transcript】\n\(t)\n\n"
+        }
+
+        // Screen
         if let sc = screenCapture?.lastCapturedText, !sc.isEmpty { c += "【Screen】\n\(sc)\n\n" }
-        if let d = overlay?.getPanelContent(.documents), !d.isEmpty { c += "【Docs】\n\(d)\n\n" }
+
+        // Document (if attach is enabled)
+        if AppSettings.shared.attachDocToContext, let docText = docs?.currentDocContent, !docText.isEmpty {
+            let docName = docs?.currentDocName ?? "doc"
+            c += "【Document: \(docName)】\n\(docText)\n\n"
+        }
+
         return c
     }
 
@@ -109,7 +137,7 @@ final class LLMManager {
         )
     }
 
-    private func queryLLM(prompt: String) async throws {
+    private func queryLLM(prompt: String, image: CGImage? = nil) async throws {
         if session == nil { setupSession() }
         guard let session else {
             conversationLog += "No LLM configured. ⌘⌥S to set up.\n\n"
@@ -118,9 +146,18 @@ final class LLMManager {
         }
 
         var acc = ""
-        for try await snap in session.streamResponse(to: prompt) {
-            acc = snap.content
-            overlay?.setText(conversationLog + acc + "\n", for: .aiResponse)
+        if let image {
+            // Send image directly to vision-capable model
+            let imageSegment = try Transcript.ImageSegment(image: image)
+            for try await snap in session.streamResponse(to: prompt, image: imageSegment) {
+                acc = snap.content
+                overlay?.setText(conversationLog + acc + "\n", for: .aiResponse)
+            }
+        } else {
+            for try await snap in session.streamResponse(to: prompt) {
+                acc = snap.content
+                overlay?.setText(conversationLog + acc + "\n", for: .aiResponse)
+            }
         }
         if acc.isEmpty { acc = "(no response)" }
         conversationLog += acc + "\n\n"

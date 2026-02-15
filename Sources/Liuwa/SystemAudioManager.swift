@@ -33,14 +33,13 @@ final class SystemAudioManager {
         finalizedTranscript = ""
         volatileTranscript = ""
 
-        overlay?.appendText("\n\n--- System Audio ---\n", to: .transcription)
         overlay?.setSysAudioActive(true)
 
         do {
             try await setupSystemAudioTap()
         } catch {
-            overlay?.appendText("System audio failed: \(error.localizedDescription)\n", to: .transcription)
             overlay?.setSysAudioActive(false)
+            print("System audio error: \(error)")
             isRunning = false
             print("System audio error: \(error)")
         }
@@ -70,12 +69,18 @@ final class SystemAudioManager {
             tapID = 0
         }
 
-        overlay?.appendText("\nSystem audio stopped.\n", to: .transcription)
+        overlay?.setSysTranscript(finalizedTranscript)
         overlay?.setSysAudioActive(false)
     }
 
     func getTranscript() -> String {
         return finalizedTranscript + volatileTranscript
+    }
+
+    func clearTranscript() {
+        finalizedTranscript = ""
+        volatileTranscript = ""
+        overlay?.setSysTranscript("")
     }
 
     // MARK: - Private
@@ -112,7 +117,7 @@ final class SystemAudioManager {
         self.audioHelper = helper
         try helper.start(aggregateDeviceID: aggregateDeviceID, targetFormat: analyzerFormat, inputBuilder: builder)
 
-        overlay?.appendText("Listening (system audio)…\n", to: .transcription)
+        print("System audio listening…")
     }
 
     private func startResultProcessing() {
@@ -131,7 +136,8 @@ final class SystemAudioManager {
                         self.volatileTranscript = text
                     }
 
-                    self.overlay?.appendText("", to: .transcription)
+                    let display = self.finalizedTranscript + self.volatileTranscript
+                    self.overlay?.setSysTranscript(display)
                 }
             } catch {
                 if !Task.isCancelled {

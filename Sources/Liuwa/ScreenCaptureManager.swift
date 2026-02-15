@@ -13,22 +13,24 @@ final class ScreenCaptureManager {
     /// Capture based on current settings (text and/or screenshot)
     func capture() async {
         let s = AppSettings.shared
-        if s.sendScreenText { lastCapturedText = getAccessibilityText() ?? "" }
-        else { lastCapturedText = "" }
+        var text = ""
 
+        if s.sendScreenText {
+            text = getAccessibilityText() ?? ""
+        }
+
+        lastCapturedImage = nil
         if s.sendScreenshot {
             if let img = try? await captureScreenshot() {
                 lastCapturedImage = img
-                // Also OCR for text-only models
-                if lastCapturedText.isEmpty, let ocr = try? await performOCR(on: img) {
-                    lastCapturedText = ocr
+                // Always OCR as text fallback
+                if let ocr = try? await performOCR(on: img) {
+                    if text.isEmpty { text = ocr }
                 }
             }
-        } else { lastCapturedImage = nil }
+        }
 
-        let parts = [s.sendScreenText ? "\(lastCapturedText.count)ch text" : nil,
-                     s.sendScreenshot ? "screenshot" : nil].compactMap { $0 }
-        if !parts.isEmpty { print("Screen: \(parts.joined(separator: " + "))") }
+        lastCapturedText = text
     }
 
     // MARK: - AX
@@ -76,7 +78,7 @@ final class ScreenCaptureManager {
         return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: cfg)
     }
 
-    private func performOCR(on image: CGImage) async throws -> String {
+    func performOCR(on image: CGImage) async throws -> String {
         try await withCheckedThrowingContinuation { cont in
             let req = VNRecognizeTextRequest { req, err in
                 if let err { cont.resume(throwing: err); return }

@@ -1,7 +1,7 @@
 import AppKit
 
 enum PanelType: String, CaseIterable {
-    case transcription, aiResponse, documents
+    case transcription, documents, aiResponse
 }
 
 // MARK: - Section
@@ -60,6 +60,11 @@ private final class SectionView {
     }
 
     func setText(_ t: String) { textView.string = t; textView.scrollToEndOfDocument(nil) }
+    func setTextScrollTop(_ t: String) {
+        textView.string = t
+        scrollView.contentView.scroll(to: NSPoint.zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
     func pageUp() {
         let v = scrollView.contentView.bounds
         scrollView.contentView.scroll(to: NSPoint(x: 0, y: max(v.origin.y - v.height * 0.8, 0)))
@@ -86,6 +91,10 @@ final class OverlayController: @unchecked Sendable {
 
     private var panelW: CGFloat, panelH: CGFloat
     private var micActive = false, sysActive = false
+
+    // Separate transcript buffers for WYSIWYG context
+    private var micTranscript: String = ""
+    private var sysTranscript: String = ""
 
     private let collapsedH: CGFloat = 16
 
@@ -130,7 +139,7 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let ghost = window.ghostModeOn ? "👻" : "👁"
         let click = window.clickThroughOn ? "🔒" : "🖱"
-        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  ⚙\(s.keyFor("openSettings")) cfg  📂\(s.keyFor("showDocs")) docs ←→  ❌\(s.keyFor("quit")) quit"
+        return "\(ghost)\(s.keyFor("toggleGhost")) ghost  \(click)\(s.keyFor("toggleClickThrough")) click  👁‍🗨\(s.keyFor("toggleOverlay")) hide  ⚙\(s.keyFor("openSettings")) cfg  ❌\(s.keyFor("quit")) quit"
     }
 
     private func buildCollapsedLine() -> String {
@@ -143,7 +152,14 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let mic = micActive ? "🟢" : "⚫"
         let sys = sysActive ? "🟢" : "⚫"
-        return "\(mic)🎤\(s.keyFor("toggleTranscription")) mic  \(sys)🔊\(s.keyFor("toggleSystemAudio")) sys"
+        return "\(mic)🎤\(s.keyFor("toggleTranscription")) mic  \(sys)🔊\(s.keyFor("toggleSystemAudio")) sys  🗑\(s.keyFor("clearTranscription")) clear"
+    }
+
+    // ── Doc hints ──
+    private func buildDocHints() -> String {
+        let s = AppSettings.shared
+        let attach = s.attachDocToContext ? "🟢" : "⚫"
+        return "📂\(s.keyFor("showDocs")) open  ←→ nav  \(attach)📎\(s.keyFor("toggleAttachDoc")) ctx"
     }
 
     // ── AI hints: line 1 = presets, line 2 = tools ──
@@ -166,6 +182,7 @@ final class OverlayController: @unchecked Sendable {
             topLine.stringValue = buildTopLine()
         }
         sections[.transcription]?.hintLabel.stringValue = buildTranscriptionHints()
+        sections[.documents]?.hintLabel.stringValue = buildDocHints()
         sections[.aiResponse]?.hintLabel.stringValue = buildAIHintsLine1()
         sections[.aiResponse]?.hint2Label?.stringValue = buildAIHintsLine2()
     }
@@ -176,16 +193,31 @@ final class OverlayController: @unchecked Sendable {
         let s = AppSettings.shared
         let w = contentContainer.frame.width, h = contentContainer.frame.height
         let gap: CGFloat = 2
-        let transH = (h - gap) * s.transcriptionRatio
-        let aiH = (h - gap) * (1.0 - s.transcriptionRatio)
+        let totalGaps = gap * 2  // 2 gaps between 3 sections
+        let usable = h - totalGaps
+        let transH = usable * s.transcriptionRatio
+        let docH = usable * s.docRatio
+        let aiH = usable * (1.0 - s.transcriptionRatio - s.docRatio)
 
+        // Top: transcription
         let ts = SectionView(hints: buildTranscriptionHints(), frame: NSRect(x: 0, y: h - transH, width: w, height: transH), font: s.font)
         sections[.transcription] = ts; contentContainer.addSubview(ts.container)
 
+        // Middle: documents
+        let ds = SectionView(hints: buildDocHints(), frame: NSRect(x: 0, y: h - transH - gap - docH, width: w, height: docH), font: s.font)
+        sections[.documents] = ds; contentContainer.addSubview(ds.container)
+
+        // Bottom: AI response
         let ai = SectionView(hints: buildAIHintsLine1(), hints2: buildAIHintsLine2(), frame: NSRect(x: 0, y: 0, width: w, height: aiH), font: s.font)
         sections[.aiResponse] = ai; contentContainer.addSubview(ai.container)
 
-        for (p, sec) in sections { sec.setText(panelContents[p] ?? "") }
+        for (p, sec) in sections {
+            if p == .documents {
+                sec.setTextScrollTop(panelContents[p] ?? "")
+            } else {
+                sec.setText(panelContents[p] ?? "")
+            }
+        }
     }
 
     // MARK: Public
@@ -236,13 +268,40 @@ final class OverlayController: @unchecked Sendable {
     func appendText(_ t: String, to p: PanelType) {
         panelContents[p] = (panelContents[p] ?? "") + t; sections[p]?.setText(panelContents[p] ?? "")
     }
-    func setText(_ t: String, for p: PanelType) { panelContents[p] = t; sections[p]?.setText(t) }
+    func setText(_ t: String, for p: PanelType) {
+        panelContents[p] = t
+        if p == .documents {
+            sections[p]?.setTextScrollTop(t)
+        } else {
+            sections[p]?.setText(t)
+        }
+    }
     func getPanelContent(_ p: PanelType) -> String? { panelContents[p] }
     func switchToPanel(_ p: PanelType) { showPanel(p) }
     func cyclePanel() {}
 
     func setMicActive(_ a: Bool) { micActive = a; refreshStatus() }
     func setSysAudioActive(_ a: Bool) { sysActive = a; refreshStatus() }
+
+    func setMicTranscript(_ text: String) {
+        micTranscript = text; rebuildTranscriptPanel()
+    }
+    func setSysTranscript(_ text: String) {
+        sysTranscript = text; rebuildTranscriptPanel()
+    }
+    func clearTranscripts() {
+        micTranscript = ""; sysTranscript = ""; rebuildTranscriptPanel()
+    }
+    private func rebuildTranscriptPanel() {
+        var combined = ""
+        if !micTranscript.isEmpty { combined += micTranscript }
+        if !sysTranscript.isEmpty {
+            if !combined.isEmpty { combined += "\n---\n" }
+            combined += sysTranscript
+        }
+        panelContents[.transcription] = combined
+        sections[.transcription]?.setText(combined)
+    }
 
     func scrollAIUp() { sections[.aiResponse]?.pageUp() }
     func scrollAIDown() { sections[.aiResponse]?.pageDown() }

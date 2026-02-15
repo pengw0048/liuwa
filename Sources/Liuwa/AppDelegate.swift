@@ -11,13 +11,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     var settings: SettingsWindow!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupEditMenu()
+
         overlay = OverlayController()
         transcription = TranscriptionManager(overlay: overlay)
         screenCapture = ScreenCaptureManager(overlay: overlay)
-        llm = LLMManager(overlay: overlay, transcription: transcription)
+        llm = LLMManager(overlay: overlay)
         llm.screenCapture = screenCapture
         systemAudio = SystemAudioManager(overlay: overlay)
         docs = DocumentManager(overlay: overlay)
+        llm.docs = docs
         settings = SettingsWindow()
 
         hotkeys = HotkeyManager()
@@ -37,6 +40,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         print("Liuwa started.")
     }
 
+    /// Standard Edit menu so Cmd+C/V/X/A work in text fields
+    @MainActor private func setupEditMenu() {
+        let mainMenu = NSMenu()
+
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
     @MainActor private func handle(_ action: HotkeyAction) {
         let s = AppSettings.shared
         switch action {
@@ -45,9 +68,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         case .toggleClickThrough: overlay.toggleClickThrough()
         case .toggleTranscription: transcription.toggle()
         case .toggleSystemAudio: systemAudio.toggle()
+        case .clearTranscription:
+            transcription.clearTranscript(); systemAudio.clearTranscript()
         case .showDocs: docs.showDocuments()
         case .docPrev: docs.previousDocument()
         case .docNext: docs.nextDocument()
+        case .toggleAttachDoc:
+            s.attachDocToContext.toggle(); s.save(); overlay.refreshStatus()
         case .openSettings: settings.toggle()
         case .cycleScreenText:
             s.sendScreenText.toggle(); s.save(); overlay.refreshStatus()
